@@ -81,6 +81,20 @@ class AiClient {
         return Reply(if (m.isNull("content")) "" else m.getString("content"), calls, m)
     }
 
+    /** Lista os modelos liberados no plano (GET /v1/models). */
+    fun listModels(cfg: Config): List<String> {
+        val base = cfg.baseUrl.trimEnd('/')
+        val url = if (base.endsWith("/v1")) "$base/models" else "$base/v1/models"
+        val req = Request.Builder().url(url).get()
+            .header("Authorization", "Bearer ${cfg.apiKey}").header("x-api-key", cfg.apiKey).build()
+        http.newCall(req).execute().use { r ->
+            val t = r.body?.string().orEmpty()
+            if (!r.isSuccessful) error("HTTP ${r.code}")
+            val arr = JSONObject(t).getJSONArray("data")
+            return (0 until arr.length()).map { arr.getJSONObject(it).getString("id") }
+        }
+    }
+
     fun appendAssistant(api: String, native: JSONArray, r: Reply) {
         if (api == "anthropic") native.put(JSONObject().put("role", "assistant").put("content", r.raw as JSONArray))
         else native.put(r.raw as JSONObject)

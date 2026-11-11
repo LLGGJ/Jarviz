@@ -10,12 +10,13 @@ data class Config(
     val ghToken: String = "",
     val speak: Boolean = true,
     val clap: Boolean = true,
-    val preset: String = "Claude Sonnet 5",
+    val preset: String = "claude-sonnet-5",
     val api: String = "anthropic",
+    val models: String = "",
 )
 
 class Prefs(ctx: Context) {
-    private val sp = ctx.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
+    private val sp = ctx.getSharedPreferences("jarvis2", Context.MODE_PRIVATE)
     private val d = Config()
     fun load() = Config(
         sp.getString("apiKey", d.apiKey)!!,
@@ -27,11 +28,12 @@ class Prefs(ctx: Context) {
         sp.getBoolean("clap", d.clap),
         sp.getString("preset", d.preset)!!,
         sp.getString("api", d.api)!!,
+        sp.getString("models", d.models)!!,
     )
     fun save(c: Config) = sp.edit()
         .putString("apiKey", c.apiKey).putString("baseUrl", c.baseUrl)
         .putString("model", c.model).putString("effort", c.effort)
         .putString("ghToken", c.ghToken).putBoolean("speak", c.speak)
         .putBoolean("clap", c.clap).putString("preset", c.preset)
-        .putString("api", c.api).apply()
+        .putString("api", c.api).putString("models", c.models).apply()
 }
