@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -54,6 +55,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var level by mutableFloatStateOf(0f); private set
     var pending by mutableStateOf<Pending?>(null); private set
     var modelsMsg by mutableStateOf(""); private set
+    var stage by mutableStateOf(""); private set
+    @Volatile private var gen = 0
+    private var job: Job? = null
     val msgs = mutableStateListOf<Msg>()
     val attachments = mutableStateListOf<Attachment>()
     private var mic = false
@@ -65,6 +69,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         voice.onLevel = { level = it }
+        ai.onStage = { stage = it }
         if (cfg.autoScan && System.currentTimeMillis() - prefs.lastScan() > 24 * 3600_000L) {
             viewModelScope.launch(Dispatchers.IO) {
                 val f = try { security.scan() } catch (e: Exception) { emptyList() }
@@ -218,13 +223,34 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val atts = attachments.toList(); attachments.clear()
         msgs.add(Msg("user", (text + atts.joinToString("") { "\n[anexo: ${it.name}]" }).trim()))
         state = State.THINKING; level = 0f
-        viewModelScope.launch {
-            val reply = withContext(Dispatchers.IO) { runAgent(text.ifBlank { "Analise os anexos." }, atts) }
+        val my = ++gen
+        job = viewModelScope.launch {
+            val reply = withContext(Dispatchers.IO) { runAgent(text.ifBlank { "Analise os anexos." }, atts, my) }
+            if (my != gen) return@launch
+            stage = ""
             msgs.add(Msg("assistant", reply))
             if (cfg.speak) {
                 state = State.SPEAKING
                 voice.speak(reply.replace(Regex("[*#`_>]"), "")) { state = State.IDLE; resumeClap() }
             } else { state = State.IDLE; resumeClap() }
+        }
+    }
+
+    /** Cancela o pedido em andamento (rede, ferramentas e permissão pendente). */
+    fun cancel() {
+        gen++
+        ai.cancelAll(); job?.cancel(); decide(false); voice.stopSpeaking()
+        state = State.IDLE; stage = ""; level = 0f
+        msgs.add(Msg("assistant", "Cancelado."))
+        resumeClap()
+    }
+
+    fun testConnection() {
+        if (cfg.key().isBlank()) { msgs.add(Msg("assistant", "Cole a API Key do provedor no menu primeiro.")); return }
+        msgs.add(Msg("assistant", "Testando a conexão com ${cfg.model}..."))
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { ai.testConnection(cfg) }
+            msgs.add(Msg("assistant", r))
         }
     }
 
@@ -371,7 +397,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         throw last ?: IllegalStateException("Falha ao chamar a IA")
     }
 
-    private fun runAgent(text: String, atts: List<Attachment>): String {
+    private fun runAgent(text: String, atts: List<Attachment>, my: Int): String {
         if (cfg.key().isBlank() || cfg.model.isBlank()) return "Configure a API Key do provedor e o modelo no menu lateral."
         approvedKeys.clear()
         curMedia = atts.mapNotNull { runCatching { Attach.media(it) }.getOrNull() }
@@ -384,6 +410,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val gh = GitHub(cfg.ghToken)
         return try {
             repeat(10) {
+                if (my != gen) return "Cancelado."
                 val (r, used) = chatSmart(c, native, plainLen)
                 c = used
                 if (r.calls.isEmpty()) {
@@ -391,12 +418,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     return r.text.ifBlank { "Pronto." }
                 }
                 ai.appendAssistant(c.api, native, r)
-                val outs = r.calls.map { call -> call to execTool(gh, call).take(12_000) }
+                val outs = r.calls.map { call -> stage = "Executando ${call.name}..."; call to execTool(gh, call).take(12_000) }
                 ai.appendResults(c.api, native, outs)
             }
             "Não consegui concluir a tarefa."
         } catch (e: Exception) {
-            "Erro: ${e.message}"
+            val tr = ai.traceText()
+            "Erro: ${e.message}" + if (tr.isNotBlank()) "\n(tempos da última chamada: $tr)" else ""
         }
     }
 

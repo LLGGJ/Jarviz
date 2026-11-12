@@ -76,6 +76,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.min
@@ -324,12 +325,19 @@ fun PermissionDialog(p: Pending, onDecide: (Boolean) -> Unit) {
 fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
     var input by remember { mutableStateOf("") }
     val list = rememberLazyListState()
+    var elapsed by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(vm.state) {
+        if (vm.state == State.THINKING) {
+            val t0 = System.currentTimeMillis()
+            while (true) { elapsed = (System.currentTimeMillis() - t0) / 1000; delay(500) }
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addUris(it) }
     LaunchedEffect(vm.msgs.size) { if (vm.msgs.isNotEmpty()) list.animateScrollToItem(vm.msgs.size - 1) }
     val label = when (vm.state) {
         State.IDLE -> if (vm.cfg.clap) "Bata 2 palmas, toque ou arraste o holograma" else "Toque no holograma para falar"
         State.LISTENING -> vm.partial.ifBlank { "Ouvindo..." }
-        State.THINKING -> "Pensando..."
+        State.THINKING -> "${vm.stage.ifBlank { "Pensando..." }} ${elapsed}s"
         State.SPEAKING -> "Falando..."
     }
     val p = vm.pending
@@ -342,10 +350,12 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
                 Spacer(Modifier.width(10.dp))
                 Text("J.A.R.V.I.S", color = Cyan, fontSize = 18.sp, letterSpacing = 4.sp)
             }
-            if (vm.cfg.theme == "orb") OrbHologram(vm.state, vm.level, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
+            if (vm.cfg.theme == "orb") OrbHologram(vm.state, { vm.level }, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
             else Hologram(vm.state, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
-            Text(label, color = Cyan.copy(alpha = 0.8f), fontSize = 13.sp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = Cyan.copy(alpha = 0.8f), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                if (vm.state == State.THINKING) NeonButton("Cancelar", pad = 10.dp, icon = Ico.CLOSE) { vm.cancel() }
+            }
             LazyColumn(Modifier.weight(0.8f).padding(horizontal = 12.dp), state = list, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(vm.msgs) { m -> Bubble(m) { a -> if (a.startsWith("install:")) vm.installRun(a.removePrefix("install:")) } }
             }
@@ -422,6 +432,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
         }
         NeonButton("Atualizar modelos da minha chave", Modifier.fillMaxWidth(), icon = Ico.REFRESH) { vm.refreshModels() }
         if (vm.modelsMsg.isNotBlank()) Text(vm.modelsMsg, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+        NeonButton("Testar conexão com a IA", Modifier.fillMaxWidth(), icon = Ico.CHECK) { vm.testConnection() }
         AnimatedVisibility(c.preset == CUSTOM, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 NeonField(c.model, { vm.updateCfg(c.copy(model = it)) }, "ID DO MODELO")
@@ -640,11 +651,11 @@ private val OrbSpark = Color(0xFFB3E5FF)
 
 /** Esfera azul de partículas. Com o volume da voz as partículas se soltam e se desmancham; ao silenciar, se recompõem. */
 @Composable
-fun OrbHologram(state: State, level: Float, modifier: Modifier = Modifier) {
+fun OrbHologram(state: State, level: () -> Float, modifier: Modifier = Modifier) {
     val speed by animateFloatAsState(if (state == State.THINKING) 2.6f else 1f, tween(700), label = "os")
     val think by animateFloatAsState(if (state == State.THINKING) 1f else 0f, tween(600), label = "ot")
     val speedNow by rememberUpdatedState(speed)
-    val levelNow by rememberUpdatedState(level)
+    val levelFn by rememberUpdatedState(level)
     var phase by remember { mutableFloatStateOf(0f) }
     var lv by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
@@ -652,7 +663,7 @@ fun OrbHologram(state: State, level: Float, modifier: Modifier = Modifier) {
         while (true) withFrameNanos { n ->
             if (last != 0L) {
                 phase += (n - last) / 1_000_000_000f * speedNow
-                val tgt = levelNow
+                val tgt = levelFn()
                 lv += (tgt - lv) * (if (tgt > lv) 0.4f else 0.07f)
             }
             last = n

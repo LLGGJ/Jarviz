@@ -1,6 +1,14 @@
 package com.jarvis.app
 
+import android.os.SystemClock
+import okhttp3.EventListener
+import okhttp3.Handshake
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -11,13 +19,68 @@ import java.util.concurrent.TimeUnit
 data class Call(val id: String, val name: String, val args: JSONObject)
 data class Reply(val text: String, val calls: List<Call>, val raw: Any)
 
-/** Cliente da FlatAI: fala Anthropic Messages (Claude) ou OpenAI chat/completions (GPT, GLM). */
+/** Linha do tempo de uma chamada: mostra onde o tempo é gasto (DNS, conexão, envio, espera do servidor). */
+class Trace : EventListener() {
+    private var t0 = 0L
+    private val sb = StringBuilder()
+    private fun mark(s: String) { sb.append(s).append(' ').append(SystemClock.elapsedRealtime() - t0).append("ms; ") }
+    fun text() = sb.toString().trim()
+    override fun callStart(call: okhttp3.Call) { t0 = SystemClock.elapsedRealtime() }
+    override fun dnsEnd(call: okhttp3.Call, domainName: String, inetAddressList: List<InetAddress>) { mark("dns") }
+    override fun connectEnd(call: okhttp3.Call, inetSocketAddress: InetSocketAddress, proxy: Proxy, protocol: Protocol?) { mark("conexão") }
+    override fun secureConnectEnd(call: okhttp3.Call, handshake: Handshake?) { mark("tls") }
+    override fun requestBodyEnd(call: okhttp3.Call, byteCount: Long) { mark("enviado") }
+    override fun responseHeadersStart(call: okhttp3.Call) { mark("1º byte") }
+    override fun callEnd(call: okhttp3.Call) { mark("fim") }
+    override fun callFailed(call: okhttp3.Call, ioe: IOException) { mark("falhou(${ioe.javaClass.simpleName})") }
+}
+
+/** Cliente da FlatAI/Gemini: fala Anthropic Messages (Claude) ou OpenAI chat/completions (GPT, GLM, Gemini). */
 class AiClient {
-    private val http = OkHttpClient.Builder().readTimeout(180, TimeUnit.SECONDS).build()
+    @Volatile private var trace = Trace()
+    var onStage: (String) -> Unit = {}
+    private val http = OkHttpClient.Builder()
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(150, TimeUnit.SECONDS)
+        .callTimeout(240, TimeUnit.SECONDS)
+        .eventListenerFactory { Trace().also { trace = it } }
+        .build()
+
+    fun cancelAll() { http.dispatcher.cancelAll() }
+    fun traceText(): String = trace.text()
+
+    /** Pedido mínimo, sem ferramentas, para testar chave, modelo e rede. */
+    fun testConnection(cfg: Config): String {
+        val t0 = SystemClock.elapsedRealtime()
+        return try {
+            val base = cfg.baseUrl.trimEnd('/')
+            val text: String
+            if (cfg.api == "anthropic") {
+                val url = if (base.endsWith("/v1")) "$base/messages" else "$base/v1/messages"
+                val res = post(url, mapOf("x-api-key" to cfg.key(), "Authorization" to "Bearer ${cfg.key()}", "anthropic-version" to "2023-06-01"),
+                    JSONObject().put("model", cfg.model).put("max_tokens", 16)
+                        .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "Responda apenas: ok"))))
+                text = res.getJSONArray("content").getJSONObject(0).optString("text")
+            } else {
+                val url = if (base.endsWith("/v1") || base.endsWith("/openai")) "$base/chat/completions" else "$base/v1/chat/completions"
+                val res = post(url, mapOf("Authorization" to "Bearer ${cfg.key()}"),
+                    JSONObject().put("model", cfg.model)
+                        .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "Responda apenas: ok"))))
+                text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content")
+            }
+            "Conexão OK com ${cfg.model} em ${SystemClock.elapsedRealtime() - t0} ms. Resposta: ${text.take(40)}\nTempos: ${traceText()}"
+        } catch (e: Exception) {
+            "Falhou com ${cfg.model} após ${SystemClock.elapsedRealtime() - t0} ms: ${e.message}\nTempos: ${traceText()}"
+        }
+    }
     private val json = "application/json".toMediaType()
 
-    fun chat(cfg: Config, system: String, messages: JSONArray, tools: JSONArray): Reply =
-        if (cfg.api == "anthropic") anthropic(cfg, system, messages, tools) else openai(cfg, system, messages, tools)
+    fun chat(cfg: Config, system: String, messages: JSONArray, tools: JSONArray): Reply {
+        onStage("Enviando para ${cfg.model}...")
+        return if (cfg.api == "anthropic") anthropic(cfg, system, messages, tools) else openai(cfg, system, messages, tools)
+    }
 
     private fun post(url: String, headers: Map<String, String>, body: JSONObject): JSONObject {
         val b = Request.Builder().url(url).post(body.toString().toRequestBody(json))
