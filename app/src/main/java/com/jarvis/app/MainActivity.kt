@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,10 +29,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun Root(vm: JarvisViewModel) {
     val ctx = LocalContext.current
-    val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.onMic(it) }
+    fun granted(p: String) = ContextCompat.checkSelfPermission(ctx, p) == PackageManager.PERMISSION_GRANTED
+    val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        vm.onMic(granted(Manifest.permission.RECORD_AUDIO))
+    }
     LaunchedEffect(Unit) {
-        val ok = ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        if (ok) vm.onMic(true) else perm.launch(Manifest.permission.RECORD_AUDIO)
+        val want = buildList {
+            add(Manifest.permission.RECORD_AUDIO); add(Manifest.permission.READ_CONTACTS); add(Manifest.permission.CALL_PHONE)
+            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+            if (Build.VERSION.SDK_INT <= 29) { add(Manifest.permission.READ_EXTERNAL_STORAGE); add(Manifest.permission.WRITE_EXTERNAL_STORAGE) }
+        }.filter { !granted(it) }
+        if (want.isEmpty()) vm.onMic(true) else perms.launch(want.toTypedArray())
     }
     JarvisApp(vm)
 }

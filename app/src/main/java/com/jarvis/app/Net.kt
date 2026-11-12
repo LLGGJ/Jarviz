@@ -29,6 +29,51 @@ class GitHub(private val token: String) {
         }
     }
 
+    private fun ensureBranch(repo: String, branch: String) {
+        try { call("GET", "/repos/$repo/git/ref/heads/$branch"); return } catch (e: Exception) { }
+        val def = JSONObject(call("GET", "/repos/$repo")).getString("default_branch")
+        val sha = JSONObject(call("GET", "/repos/$repo/git/ref/heads/$def")).getJSONObject("object").getString("sha")
+        call("POST", "/repos/$repo/git/refs", JSONObject().put("ref", "refs/heads/$branch").put("sha", sha).toString())
+    }
+
+    private fun commit(repo: String, branch: String, path: String, content: String, msg: String): String {
+        ensureBranch(repo, branch)
+        val sha = try { JSONObject(call("GET", "/repos/$repo/contents/$path?ref=$branch")).optString("sha") } catch (e: Exception) { "" }
+        val body = JSONObject().put("message", msg.ifBlank { "Atualiza $path (Jarvis)" })
+            .put("content", Base64.encodeToString(content.toByteArray(), Base64.NO_WRAP)).put("branch", branch)
+        if (sha.isNotBlank()) body.put("sha", sha)
+        val o = JSONObject(call("PUT", "/repos/$repo/contents/$path", body.toString()))
+        return "Commit feito na branch $branch: ${o.getJSONObject("commit").getString("html_url")}"
+    }
+
+    private fun edit(a: JSONObject): String {
+        val repo = a.getString("repo"); val branch = a.getString("branch"); val path = a.getString("path")
+        ensureBranch(repo, branch)
+        val o = JSONObject(call("GET", "/repos/$repo/contents/$path?ref=$branch"))
+        val text = String(Base64.decode(o.getString("content"), Base64.DEFAULT))
+        val old = a.getString("old")
+        if (old.isEmpty()) return "Erro: o trecho a trocar está vazio."
+        val n = text.split(old).size - 1
+        if (n != 1) return "Erro: o trecho aparece $n vezes em $path (precisa aparecer exatamente 1). Use um trecho maior e único."
+        return commit(repo, branch, path, text.replace(old, a.getString("new")), a.optString("message"))
+    }
+
+    private fun openPr(a: JSONObject): String {
+        val repo = a.getString("repo")
+        val base = a.optString("base").ifBlank { JSONObject(call("GET", "/repos/$repo")).getString("default_branch") }
+        val o = JSONObject(call("POST", "/repos/$repo/pulls", JSONObject().put("title", a.getString("title"))
+            .put("head", a.getString("head")).put("base", base).put("body", a.optString("body")).toString()))
+        return "Pull request aberto: ${o.getString("html_url")}"
+    }
+
+    private fun listDir(a: JSONObject): String {
+        val repo = a.getString("repo"); val path = a.optString("path"); val ref = a.optString("ref")
+        val q = if (ref.isBlank()) "" else "?ref=$ref"
+        val txt = call("GET", if (path.isBlank()) "/repos/$repo/contents$q" else "/repos/$repo/contents/$path$q")
+        val arr = JSONArray(txt)
+        return (0 until arr.length()).joinToString("\n") { val o = arr.getJSONObject(it); "${o.getString("type")} ${o.getString("path")}" }
+    }
+
     fun run(name: String, a: JSONObject): String = try {
         when (name) {
             "github_api" -> call(a.optString("method", "GET"), a.getString("path"), a.optString("body")).take(8000)
@@ -40,7 +85,8 @@ class GitHub(private val token: String) {
                 }
             }
             "github_read_file" -> {
-                val o = JSONObject(call("GET", "/repos/${a.getString("repo")}/contents/${a.getString("path")}"))
+                val ref = a.optString("ref")
+                val o = JSONObject(call("GET", "/repos/${a.getString("repo")}/contents/${a.getString("path")}" + if (ref.isBlank()) "" else "?ref=$ref"))
                 String(Base64.decode(o.getString("content"), Base64.DEFAULT)).take(8000)
             }
             "github_list_issues" -> {
@@ -55,6 +101,10 @@ class GitHub(private val token: String) {
                     JSONObject().put("title", a.getString("title")).put("body", a.optString("body", "")).toString()))
                 "Issue criada: ${o.getString("html_url")}"
             }
+            "github_list_dir" -> listDir(a)
+            "github_commit_file" -> commit(a.getString("repo"), a.getString("branch"), a.getString("path"), a.getString("content"), a.optString("message"))
+            "github_edit_file" -> edit(a)
+            "github_open_pr" -> openPr(a)
             else -> "Ferramenta desconhecida: $name"
         }
     } catch (e: Exception) {

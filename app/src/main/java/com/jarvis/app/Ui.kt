@@ -28,6 +28,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -52,6 +53,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -64,6 +66,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
@@ -90,7 +95,7 @@ fun Modifier.tap(onClick: () -> Unit): Modifier = composed {
 
 // ---------- ícones vetoriais (desenhados em SVG-style, sem emoji Unicode) ----------
 
-enum class Ico { MENU, MIC, SEND, BOOK, REFRESH, CHEVRON, CHECK, CLOSE }
+enum class Ico { MENU, MIC, SEND, BOOK, REFRESH, CHEVRON, CHECK, CLOSE, OPEN, CLIP, FOLDER, SHIELD, DOWNLOAD }
 
 @Composable
 fun NeonIcon(ico: Ico, modifier: Modifier = Modifier.size(22.dp), color: Color = Color.White) {
@@ -128,6 +133,30 @@ fun NeonIcon(ico: Ico, modifier: Modifier = Modifier.size(22.dp), color: Color =
             Ico.CHEVRON -> { line(o(6f, 9f), o(12f, 15f)); line(o(12f, 15f), o(18f, 9f)) }
             Ico.CHECK -> { line(o(5f, 12.5f), o(10f, 17.5f)); line(o(10f, 17.5f), o(19f, 7f)) }
             Ico.CLOSE -> { line(o(6f, 6f), o(18f, 18f)); line(o(18f, 6f), o(6f, 18f)) }
+            Ico.CLIP -> drawPath(Path().apply {
+                moveTo(20f * s, 11f * s); lineTo(12f * s, 19f * s); quadraticBezierTo(8.5f * s, 22f * s, 5.5f * s, 18.5f * s)
+                quadraticBezierTo(2.8f * s, 15.5f * s, 6f * s, 12.5f * s); lineTo(14f * s, 4.5f * s)
+                quadraticBezierTo(16.5f * s, 2.2f * s, 18.8f * s, 4.5f * s); quadraticBezierTo(21f * s, 6.8f * s, 18.6f * s, 9.2f * s)
+                lineTo(10.6f * s, 17.2f * s); quadraticBezierTo(9.3f * s, 18.3f * s, 8.2f * s, 17.2f * s)
+                quadraticBezierTo(7.1f * s, 16f * s, 8.2f * s, 14.8f * s); lineTo(15f * s, 8f * s)
+            }, color, style = st)
+            Ico.FOLDER -> drawPath(Path().apply {
+                moveTo(3f * s, 6f * s); lineTo(10f * s, 6f * s); lineTo(12f * s, 8f * s); lineTo(21f * s, 8f * s)
+                lineTo(21f * s, 19f * s); lineTo(3f * s, 19f * s); close()
+            }, color, style = st)
+            Ico.SHIELD -> {
+                drawPath(Path().apply {
+                    moveTo(12f * s, 3f * s); lineTo(20f * s, 6f * s); lineTo(20f * s, 12f * s)
+                    quadraticBezierTo(20f * s, 18f * s, 12f * s, 21f * s); quadraticBezierTo(4f * s, 18f * s, 4f * s, 12f * s)
+                    lineTo(4f * s, 6f * s); close()
+                }, color, style = st)
+                line(o(8.5f, 12f), o(11f, 14.5f)); line(o(11f, 14.5f), o(15.5f, 9.5f))
+            }
+            Ico.DOWNLOAD -> { line(o(12f, 4f), o(12f, 15f)); line(o(12f, 15f), o(7.5f, 10.5f)); line(o(12f, 15f), o(16.5f, 10.5f)); line(o(5f, 20f), o(19f, 20f)) }
+            Ico.OPEN -> {
+                drawPath(Path().apply { moveTo(18f * s, 13f * s); lineTo(18f * s, 19f * s); lineTo(5f * s, 19f * s); lineTo(5f * s, 6f * s); lineTo(11f * s, 6f * s) }, color, style = st)
+                line(o(14f, 3f), o(21f, 3f)); line(o(21f, 3f), o(21f, 10f)); line(o(21f, 3f), o(10f, 14f))
+            }
         }
     }
 }
@@ -275,7 +304,7 @@ fun PermissionDialog(p: Pending, onDecide: (Boolean) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(p.title, color = Amber, fontSize = 14.sp, letterSpacing = 2.sp)
-            Text("O Jarvis quer executar no GitHub:", color = Color.White, fontSize = 13.sp)
+            Text("O Jarvis quer executar:", color = Color.White, fontSize = 13.sp)
             Box(Modifier.fillMaxWidth().heightIn(max = 180.dp).clip(R12).background(Field).padding(10.dp).verticalScroll(rememberScrollState())) {
                 Text(p.detail, color = Cyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
@@ -293,6 +322,7 @@ fun PermissionDialog(p: Pending, onDecide: (Boolean) -> Unit) {
 fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
     var input by remember { mutableStateOf("") }
     val list = rememberLazyListState()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addUris(it) }
     LaunchedEffect(vm.msgs.size) { if (vm.msgs.isNotEmpty()) list.animateScrollToItem(vm.msgs.size - 1) }
     val label = when (vm.state) {
         State.IDLE -> if (vm.cfg.clap) "Bata 2 palmas, toque ou arraste o holograma" else "Toque no holograma para falar"
@@ -308,13 +338,25 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Text("J.A.R.V.I.S", color = Cyan, fontSize = 18.sp, letterSpacing = 4.sp)
             }
-            Hologram(vm.state, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
+            if (vm.cfg.theme == "orb") OrbHologram(vm.state, vm.level, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
+            else Hologram(vm.state, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
             Text(label, color = Cyan.copy(alpha = 0.8f), fontSize = 13.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
             LazyColumn(Modifier.weight(0.8f).padding(horizontal = 12.dp), state = list, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(vm.msgs) { Bubble(it) }
+                items(vm.msgs) { m -> Bubble(m) { a -> if (a.startsWith("install:")) vm.installRun(a.removePrefix("install:")) } }
+            }
+            if (vm.attachments.isNotEmpty()) LazyRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(vm.attachments) { a ->
+                    Row(Modifier.clip(R12).background(Field).border(1.dp, Cyan.copy(alpha = 0.5f), R12).padding(horizontal = 10.dp, vertical = 6.dp)
+                        .tap { vm.removeAttachment(a) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(a.name, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
+                        NeonIcon(Ico.CLOSE, Modifier.size(14.dp), Cyan)
+                    }
+                }
             }
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                NeonButton(modifier = Modifier.size(48.dp), shape = CircleShape, pad = 0.dp, icon = Ico.CLIP) { picker.launch(arrayOf("*/*")) }
+                Spacer(Modifier.width(8.dp))
                 NeonField(input, { input = it }, modifier = Modifier.weight(1f), placeholder = "Digite para o Jarvis...",
                     singleLine = false, onSend = { vm.send(input); input = "" })
                 Spacer(Modifier.width(8.dp))
@@ -331,13 +373,20 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
 }
 
 @Composable
-fun Bubble(m: Msg) {
+fun Bubble(m: Msg, onAction: (String) -> Unit = {}) {
     val user = m.role == "user"
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (user) Arrangement.End else Arrangement.Start) {
+    val ctx = LocalContext.current
+    val url = remember(m.text) { Regex("https?://\\S+").find(m.text)?.value }
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (user) Alignment.End else Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Surface(
             color = if (user) Color(0xFF0B3A52) else Panel, shape = RoundedCornerShape(12.dp),
             border = BorderStroke(1.dp, Cyan.copy(alpha = 0.4f)), modifier = Modifier.widthIn(max = 300.dp)
         ) { Text(m.text, Modifier.padding(10.dp), color = Color.White, fontSize = 14.sp) }
+        if (m.action?.startsWith("install:") == true) NeonButton("Baixar e instalar", pad = 12.dp, icon = Ico.DOWNLOAD, active = true) { onAction(m.action) }
+        if (url != null) NeonButton("Abrir link", pad = 12.dp, icon = Ico.OPEN) {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 }
 
@@ -368,15 +417,22 @@ fun SettingsPanel(vm: JarvisViewModel) {
                 }
             }
         }
+        Text("VISUAL DO HOLOGRAMA", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonSegmented(listOf("Orbe", "Rede"), if (c.theme == "orb") 0 else 1) { vm.updateCfg(c.copy(theme = if (it == 0) "orb" else "net")) }
         Text("ESFORÇO DE RACIOCÍNIO", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
         NeonSegmented(listOf("Baixo", "Médio", "Alto"), efforts.indexOf(c.effort).coerceAtLeast(0)) {
             vm.updateCfg(c.copy(effort = efforts[it]))
         }
         NeonField(c.ghToken, { vm.updateCfg(c.copy(ghToken = it)) }, "TOKEN DO GITHUB (ghp_...)", placeholder = "ghp_xxxxxxxxxxxx", secret = true)
+        NeonField(c.repo, { vm.updateCfg(c.copy(repo = it)) }, "REPOSITÓRIO DO APP (BUILD)", placeholder = "dono/repositorio")
         Text("Com o token o Jarvis lê e gerencia seu GitHub. Toda ação que escreve pede sua permissão.",
             color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         NeonToggle("Responder por voz", c.speak) { vm.updateCfg(c.copy(speak = it)) }
         NeonToggle("Ativar com 2 palmas", c.clap) { vm.updateCfg(c.copy(clap = it)) }
+        NeonToggle("Verificar o celular 1x por dia", c.autoScan) { vm.updateCfg(c.copy(autoScan = it)) }
+        NeonField(c.firecrawl, { vm.updateCfg(c.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL, MELHORA A PESQUISA)", secret = true)
+        NeonButton("Verificar meu celular agora", Modifier.fillMaxWidth(), icon = Ico.SHIELD) { vm.runScanNow() }
+        NeonButton("Permitir acesso aos arquivos", Modifier.fillMaxWidth(), icon = Ico.FOLDER) { vm.requestFiles() }
         NeonButton("Documentação flatai.pro", Modifier.fillMaxWidth(), icon = Ico.BOOK) {
             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://flatai.pro")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
@@ -554,5 +610,103 @@ fun Hologram(state: State, modifier: Modifier = Modifier) {
         // scanlines
         var y = 0f
         while (y < size.height) { drawLine(Color.White.copy(alpha = 0.03f), Offset(0f, y), Offset(size.width, y), 1f); y += 6f }
+    }
+}
+
+
+// ---------- orbe de partículas (azul) ----------
+
+private const val ORB_N = 1100
+private val OrbBlue = Color(0xFF2979FF)
+private val OrbDeep = Color(0xFF1E4FD8)
+private val OrbLight = Color(0xFF82B1FF)
+private val OrbSpark = Color(0xFFB3E5FF)
+
+/** Esfera azul de partículas. Com o volume da voz as partículas se soltam e se desmancham; ao silenciar, se recompõem. */
+@Composable
+fun OrbHologram(state: State, level: Float, modifier: Modifier = Modifier) {
+    val speed by animateFloatAsState(if (state == State.THINKING) 2.6f else 1f, tween(700), label = "os")
+    val think by animateFloatAsState(if (state == State.THINKING) 1f else 0f, tween(600), label = "ot")
+    val speedNow by rememberUpdatedState(speed)
+    val levelNow by rememberUpdatedState(level)
+    var phase by remember { mutableFloatStateOf(0f) }
+    var lv by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) withFrameNanos { n ->
+            if (last != 0L) {
+                phase += (n - last) / 1_000_000_000f * speedNow
+                val tgt = levelNow
+                lv += (tgt - lv) * (if (tgt > lv) 0.4f else 0.07f)
+            }
+            last = n
+        }
+    }
+    var dragYaw by remember { mutableFloatStateOf(0f) }
+    var dragPitch by remember { mutableFloatStateOf(0f) }
+    val data = remember {
+        val r = Random(11)
+        FloatArray(ORB_N * 5).also { d ->
+            for (i in 0 until ORB_N) {
+                val y = 1f - 2f * (i + 0.5f) / ORB_N
+                val rad = sqrt(1f - y * y)
+                val th = i * 2.3999631f
+                d[i * 5] = cos(th) * rad; d[i * 5 + 1] = y; d[i * 5 + 2] = sin(th) * rad
+                d[i * 5 + 3] = r.nextFloat(); d[i * 5 + 4] = r.nextFloat()
+            }
+        }
+    }
+    val back = remember { ArrayList<Offset>(ORB_N) }
+    val mid = remember { ArrayList<Offset>(ORB_N) }
+    val front = remember { ArrayList<Offset>(ORB_N) }
+    val spark = remember { ArrayList<Offset>(ORB_N) }
+
+    Canvas(modifier.pointerInput(Unit) {
+        detectDragGestures { _, d -> dragYaw += d.x * 0.01f; dragPitch = (dragPitch + d.y * 0.008f).coerceIn(-0.6f, 0.6f) }
+    }) {
+        val t = phase
+        val cx = size.width / 2f; val cy = size.height * 0.46f
+        val voice = (lv + (if (state == State.SPEAKING) 0.12f + 0.08f * sin(t * 5f) else 0f)).coerceIn(0f, 1f)
+        val breath = 0.5f + 0.5f * sin(t * 1.6f)
+        val rr = min(size.width, size.height * 1.15f) * 0.30f * (1f + 0.05f * breath + 0.10f * voice)
+        val cv = cos(dragYaw); val sv = sin(dragYaw)
+        val pit = 0.28f + dragPitch
+        val cpt = cos(pit); val spt = sin(pit)
+        back.clear(); mid.clear(); front.clear(); spark.clear()
+        for (i in 0 until ORB_N) {
+            val ux = data[i * 5]; val uy = data[i * 5 + 1]; val uz = data[i * 5 + 2]
+            val a = data[i * 5 + 3]; val b = data[i * 5 + 4]
+            val s0 = (voice * 1.35f - a * 0.75f).coerceIn(0f, 1f)
+            val s = s0 * s0 * (3f - 2f * s0)
+            val rad = 1f + 0.025f * sin(t * 2.2f + b * 6.283f) + s * (0.30f + 1.3f * b)
+            val j = s * 0.18f
+            val x = ux * rad + j * sin(t * 3f + a * 40f)
+            val y = uy * rad + j * sin(t * 2.7f + b * 40f)
+            val z = uz * rad + j * sin(t * 3.3f + a * 17f)
+            val ang = t * 0.35f + think * 1.2f * uy
+            val co = cos(ang); val so = sin(ang)
+            val x0 = x * co + z * so; val z0 = -x * so + z * co
+            val x1 = x0 * cv + z0 * sv; val z1 = -x0 * sv + z0 * cv
+            val y2 = y * cpt - z1 * spt; val z2 = y * spt + z1 * cpt
+            val f = 3.2f / (3.2f - z2 * 0.7f)
+            val p = Offset(cx + x1 * rr * f, cy - y2 * rr * f)
+            if (s > 0.35f) spark.add(p) else when {
+                z2 < -0.35f -> back.add(p)
+                z2 < 0.35f -> mid.add(p)
+                else -> front.add(p)
+            }
+        }
+        drawCircle(Brush.radialGradient(listOf(OrbBlue.copy(alpha = 0.22f + 0.35f * voice), Color.Transparent), Offset(cx, cy), rr * 2.2f), rr * 2.2f, Offset(cx, cy))
+        drawCircle(Brush.radialGradient(listOf(OrbLight.copy(alpha = 0.18f + 0.5f * voice), Color.Transparent), Offset(cx, cy), rr * 0.7f), rr * 0.7f, Offset(cx, cy))
+        // base de luz azul
+        val by = cy + rr * 1.75f
+        for (i in 0..1) {
+            val w = rr * (1.2f + i * 0.45f)
+            drawOval(OrbBlue.copy(alpha = 0.45f - i * 0.15f), Offset(cx - w, by - w * 0.18f), Size(w * 2f, w * 0.36f), style = Stroke(2f))
+        }
+        drawPoints(back, PointMode.Points, OrbDeep.copy(alpha = 0.5f), 2.2f, StrokeCap.Round)
+        drawPoints(mid, PointMode.Points, OrbBlue.copy(alpha = 0.85f), 3.2f, StrokeCap.Round)
+        drawPoints(front, PointMode.Points, OrbLight, 4.4f, StrokeCap.Round)
+        drawPoints(spark, PointMode.Points, OrbSpark.copy(alpha = 0.9f), 3.4f, StrokeCap.Round)
     }
 }
