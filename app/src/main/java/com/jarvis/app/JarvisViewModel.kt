@@ -111,16 +111,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         .put(tool("phone_volume", "Ajusta o volume. action: set, up, down ou mute. percent 0-100 (para set). stream: music, ring ou alarm",
             "action", "percent?", "stream?"))
 
-    /** Parâmetros terminados em ? são opcionais. */
+    /** Parâmetros terminados em ? são opcionais. Sem parâmetros, o schema é omitido (o Gemini não aceita objeto vazio). */
     private fun tool(name: String, desc: String, vararg p: String): JSONObject {
-        val props = JSONObject()
-        p.forEach { props.put(it.trimEnd('?'), JSONObject().put("type", "string")) }
-        return JSONObject().put("type", "function").put(
-            "function", JSONObject().put("name", name).put("description", desc).put(
-                "parameters", JSONObject().put("type", "object").put("properties", props)
-                    .put("required", JSONArray(p.filter { !it.endsWith("?") }))
-            )
-        )
+        val fn = JSONObject().put("name", name).put("description", desc)
+        if (p.isNotEmpty()) {
+            val props = JSONObject()
+            p.forEach { props.put(it.trimEnd('?'), JSONObject().put("type", "string")) }
+            val params = JSONObject().put("type", "object").put("properties", props)
+            val req = p.filter { !it.endsWith("?") }
+            if (req.isNotEmpty()) params.put("required", JSONArray(req))
+            fn.put("parameters", params)
+        }
+        return JSONObject().put("type", "function").put("function", fn)
     }
 
     private fun systemPrompt(): String {
@@ -139,8 +141,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun decide(ok: Boolean) { pending?.result?.complete(ok); pending = null }
     fun requestFiles() { files.requestAll() }
 
+    private fun csv(s: String) = s.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
     fun availableModels(): List<String> =
-        cfg.models.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { DEFAULT_MODELS }
+        if (cfg.provider == "gemini") csv(cfg.geminiModels).ifEmpty { DEFAULT_GEMINI }
+        else csv(cfg.models).ifEmpty { DEFAULT_MODELS }
+
+    /** Troca de provedor (FlatAI / Gemini): escolhe o primeiro modelo da lista dele e ajusta URL e protocolo. */
+    fun setProvider(p: String) {
+        if (p == cfg.provider) return
+        val m = (if (p == "gemini") csv(cfg.geminiModels).ifEmpty { DEFAULT_GEMINI } else csv(cfg.models).ifEmpty { DEFAULT_MODELS }).first()
+        val api = apiFor(m, p)
+        updateCfg(cfg.copy(provider = p, model = m, preset = m, api = api, baseUrl = baseFor(api, p)))
+        modelsMsg = ""
+    }
 
     fun refreshModels() {
         modelsMsg = "Buscando..."
@@ -148,7 +162,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             val r = withContext(Dispatchers.IO) { runCatching { ai.listModels(cfg) } }
             r.onSuccess { ids ->
                 if (ids.isEmpty()) modelsMsg = "Nenhum modelo retornado"
-                else { updateCfg(cfg.copy(models = ids.joinToString(","))); modelsMsg = "${ids.size} modelos no seu plano" }
+                else {
+                    updateCfg(if (cfg.provider == "gemini") cfg.copy(geminiModels = ids.joinToString(",")) else cfg.copy(models = ids.joinToString(",")))
+                    modelsMsg = "${ids.size} modelos disponíveis na sua chave"
+                }
             }.onFailure { modelsMsg = "Não consegui listar (${it.message}). Ele aprende pelos erros ao conversar." }
         }
     }
@@ -342,12 +359,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         viewModelScope.launch(Dispatchers.Main) { updateCfg(cfg.copy(models = ids.joinToString(","))) }
                     }
                 }
-                val retry = (m.startsWith("HTTP 404") || m.startsWith("HTTP 503")) && native.length() == plainLen
+                val retry = (m.startsWith("HTTP 404") || m.startsWith("HTTP 503") || m.startsWith("HTTP 429")) && native.length() == plainLen
                 if (!retry) throw e
                 val next = avail.firstOrNull { it !in tried } ?: throw e
                 tried += next
-                val api = apiFor(next)
-                c = c.copy(model = next, api = api, baseUrl = baseFor(api))
+                val api = apiFor(next, c.provider)
+                c = c.copy(model = next, api = api, baseUrl = baseFor(api, c.provider))
                 note("O modelo ${tried.first()} não está disponível agora. Usando $next.")
             }
         }
@@ -355,7 +372,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun runAgent(text: String, atts: List<Attachment>): String {
-        if (cfg.apiKey.isBlank() || cfg.model.isBlank()) return "Configure a API Key e o modelo no menu lateral."
+        if (cfg.key().isBlank() || cfg.model.isBlank()) return "Configure a API Key do provedor e o modelo no menu lateral."
         approvedKeys.clear()
         curMedia = atts.mapNotNull { runCatching { Attach.media(it) }.getOrNull() }
         curText = (text + atts.joinToString("") { "\n\n" + Attach.describe(it) }).take(60_000)

@@ -20,6 +20,8 @@
     </queries>
     <application
         android:label="Jarvis"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.Jarvis">
         <provider
             android:name="androidx.core.content.FileProvider"

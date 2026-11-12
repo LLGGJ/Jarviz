@@ -20,6 +20,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -335,7 +337,9 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 NeonButton(pad = 12.dp, icon = Ico.MENU, onClick = openMenu)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(10.dp))
+                Image(painterResource(R.drawable.logo), null, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
+                Spacer(Modifier.width(10.dp))
                 Text("J.A.R.V.I.S", color = Cyan, fontSize = 18.sp, letterSpacing = 4.sp)
             }
             if (vm.cfg.theme == "orb") OrbHologram(vm.state, vm.level, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
@@ -397,15 +401,26 @@ fun SettingsPanel(vm: JarvisViewModel) {
     val options = vm.availableModels() + CUSTOM
     val efforts = listOf("low", "medium", "high")
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("CONFIGURAÇÕES", color = Cyan, fontSize = 18.sp, letterSpacing = 3.sp)
-        NeonField(c.apiKey, { vm.updateCfg(c.copy(apiKey = it)) }, "API KEY (FLATAI.PRO)", secret = true)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Image(painterResource(R.drawable.logo), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)))
+            Text("CONFIGURAÇÕES", color = Cyan, fontSize = 18.sp, letterSpacing = 3.sp)
+        }
+        NeonSelect("PROVEDOR DE IA", PROVIDERS.map { it.second }, PROVIDERS.first { it.first == c.provider }.second) { n ->
+            vm.setProvider(PROVIDERS.first { it.second == n }.first)
+        }
+        if (c.provider == "gemini") {
+            NeonField(c.geminiKey, { vm.updateCfg(c.copy(geminiKey = it)) }, "API KEY (GOOGLE AI STUDIO)", placeholder = "AIza...", secret = true)
+            NeonButton("Criar chave no AI Studio", Modifier.fillMaxWidth(), icon = Ico.OPEN) {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        } else NeonField(c.apiKey, { vm.updateCfg(c.copy(apiKey = it)) }, "API KEY (FLATAI.PRO)", secret = true)
         NeonSelect("MODELO DE IA", options, c.preset) { n ->
             vm.updateCfg(
                 if (n == CUSTOM) c.copy(preset = n)
-                else c.copy(preset = n, model = n, api = apiFor(n), baseUrl = baseFor(apiFor(n)))
+                else c.copy(preset = n, model = n, api = apiFor(n, c.provider), baseUrl = baseFor(apiFor(n, c.provider), c.provider))
             )
         }
-        NeonButton("Atualizar modelos do plano", Modifier.fillMaxWidth(), icon = Ico.REFRESH) { vm.refreshModels() }
+        NeonButton("Atualizar modelos da minha chave", Modifier.fillMaxWidth(), icon = Ico.REFRESH) { vm.refreshModels() }
         if (vm.modelsMsg.isNotBlank()) Text(vm.modelsMsg, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
         AnimatedVisibility(c.preset == CUSTOM, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -433,8 +448,9 @@ fun SettingsPanel(vm: JarvisViewModel) {
         NeonField(c.firecrawl, { vm.updateCfg(c.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL, MELHORA A PESQUISA)", secret = true)
         NeonButton("Verificar meu celular agora", Modifier.fillMaxWidth(), icon = Ico.SHIELD) { vm.runScanNow() }
         NeonButton("Permitir acesso aos arquivos", Modifier.fillMaxWidth(), icon = Ico.FOLDER) { vm.requestFiles() }
-        NeonButton("Documentação flatai.pro", Modifier.fillMaxWidth(), icon = Ico.BOOK) {
-            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://flatai.pro")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        NeonButton(if (c.provider == "gemini") "Documentação do Gemini" else "Documentação flatai.pro", Modifier.fillMaxWidth(), icon = Ico.BOOK) {
+            val doc = if (c.provider == "gemini") "https://ai.google.dev/gemini-api/docs/models" else "https://flatai.pro"
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(doc)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 }

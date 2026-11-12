@@ -17,7 +17,12 @@ data class Config(
     val theme: String = "orb",
     val firecrawl: String = "",
     val autoScan: Boolean = true,
-)
+    val provider: String = "flat",
+    val geminiKey: String = "",
+    val geminiModels: String = "",
+) {
+    fun key() = if (provider == "gemini") geminiKey else apiKey
+}
 
 class Prefs(ctx: Context) {
     private val sp = ctx.getSharedPreferences("jarvis2", Context.MODE_PRIVATE)
@@ -37,6 +42,9 @@ class Prefs(ctx: Context) {
         sp.getString("theme", d.theme)!!,
         sp.getString("firecrawl", d.firecrawl)!!,
         sp.getBoolean("autoScan", d.autoScan),
+        sp.getString("provider", d.provider)!!,
+        sp.getString("geminiKey", d.geminiKey)!!,
+        sp.getString("geminiModels", d.geminiModels)!!,
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -47,5 +55,6 @@ class Prefs(ctx: Context) {
         .putBoolean("clap", c.clap).putString("preset", c.preset)
         .putString("api", c.api).putString("models", c.models)
         .putString("repo", c.repo).putString("theme", c.theme)
-        .putString("firecrawl", c.firecrawl).putBoolean("autoScan", c.autoScan).apply()
+        .putString("firecrawl", c.firecrawl).putBoolean("autoScan", c.autoScan)
+        .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels).apply()
 }
