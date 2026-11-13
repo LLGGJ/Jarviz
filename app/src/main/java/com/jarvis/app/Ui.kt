@@ -14,10 +14,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -110,7 +112,7 @@ fun Modifier.tap(onClick: () -> Unit): Modifier = composed {
 
 // ---------- ícones vetoriais (desenhados em SVG-style, sem emoji Unicode) ----------
 
-enum class Ico { MENU, MIC, SEND, BOOK, REFRESH, CHEVRON, CHECK, CLOSE, OPEN, CLIP, FOLDER, SHIELD, DOWNLOAD, TRASH }
+enum class Ico { MENU, MIC, SEND, BOOK, REFRESH, CHEVRON, CHECK, CLOSE, OPEN, CLIP, FOLDER, SHIELD, DOWNLOAD, TRASH, SEARCH, TERMINAL, BOLT, CODE, PANEL_L, PANEL_R }
 
 @Composable
 fun NeonIcon(ico: Ico, modifier: Modifier = Modifier.size(22.dp), color: Color = Color.White) {
@@ -168,6 +170,17 @@ fun NeonIcon(ico: Ico, modifier: Modifier = Modifier.size(22.dp), color: Color =
                 line(o(8.5f, 12f), o(11f, 14.5f)); line(o(11f, 14.5f), o(15.5f, 9.5f))
             }
             Ico.DOWNLOAD -> { line(o(12f, 4f), o(12f, 15f)); line(o(12f, 15f), o(7.5f, 10.5f)); line(o(12f, 15f), o(16.5f, 10.5f)); line(o(5f, 20f), o(19f, 20f)) }
+            Ico.SEARCH -> { drawCircle(color, 6.5f * s, o(10.5f, 10.5f), style = st); line(o(15.5f, 15.5f), o(20f, 20f)) }
+            Ico.TERMINAL -> {
+                drawRoundRect(color, o(3f, 5f), Size(18f * s, 14f * s), CornerRadius(3f * s, 3f * s), style = st)
+                line(o(7f, 10f), o(10f, 12f)); line(o(10f, 12f), o(7f, 14f)); line(o(12f, 15f), o(17f, 15f))
+            }
+            Ico.BOLT -> drawPath(Path().apply {
+                moveTo(13f * s, 3f * s); lineTo(6f * s, 13f * s); lineTo(11f * s, 13f * s); lineTo(10f * s, 21f * s); lineTo(18f * s, 10f * s); lineTo(13f * s, 10f * s); close()
+            }, color, style = st)
+            Ico.CODE -> { line(o(9f, 7f), o(4f, 12f)); line(o(4f, 12f), o(9f, 17f)); line(o(15f, 7f), o(20f, 12f)); line(o(20f, 12f), o(15f, 17f)) }
+            Ico.PANEL_L -> { drawRoundRect(color, o(3f, 5f), Size(18f * s, 14f * s), CornerRadius(3f * s, 3f * s), style = st); line(o(9f, 5f), o(9f, 19f)) }
+            Ico.PANEL_R -> { drawRoundRect(color, o(3f, 5f), Size(18f * s, 14f * s), CornerRadius(3f * s, 3f * s), style = st); line(o(15f, 5f), o(15f, 19f)) }
             Ico.TRASH -> {
                 drawPath(Path().apply { moveTo(6f * s, 7f * s); lineTo(7f * s, 20f * s); lineTo(17f * s, 20f * s); lineTo(18f * s, 7f * s) }, color, style = st)
                 line(o(4f, 7f), o(20f, 7f)); line(o(9f, 7f), o(9f, 4f)); line(o(9f, 4f), o(15f, 4f)); line(o(15f, 4f), o(15f, 7f))
@@ -360,6 +373,8 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addUris(it) }
+    var showLeft by remember { mutableStateOf(false) }
+    var showRight by remember { mutableStateOf(true) }
     val shown = vm.shown
     val p = vm.pending
     Box(
@@ -367,21 +382,42 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
             .pointerInput(Unit) { awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); vm.noteTouch() } } }
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth > maxHeight * 1.15f // celular deitado ou tablet: núcleo à esquerda, conversa à direita
+            val w = maxWidth
+            val wide = w > maxHeight * 1.15f && w >= 540.dp      // celular deitado ou tablet: 3 painéis como no app de referência
+            val inlineLeft = wide && w >= 840.dp
+            val pick = { picker.launch(arrayOf("*/*")); Unit }
             Column(Modifier.fillMaxSize()) {
                 TopBar(vm, openMenu)
                 if (wide) {
-                    Row(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (inlineLeft) AnimatedVisibility(showLeft, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) {
+                            ModulesPanel(vm, { input = it }, pick, Modifier.width(220.dp).fillMaxHeight())
+                        }
                         Column(Modifier.weight(1f).fillMaxHeight()) {
                             HologramCard(vm, shown, elapsed, Modifier.weight(1f).fillMaxWidth())
-                            Spacer(Modifier.height(8.dp)); StatePills(shown); Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(6.dp))
+                            PillsRow(shown, showLeft, showRight, { showLeft = !showLeft }, { showRight = !showRight })
+                            ChipsRow(vm, pick, null)
+                            AttachRow(vm)
+                            InputBar(vm, input) { input = it }
                         }
-                        ChatPane(vm, input, { input = it }, { picker.launch(arrayOf("*/*")) }, Modifier.weight(1.1f).fillMaxHeight())
+                        AnimatedVisibility(showRight, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) {
+                            ActivityPanel(vm, openMenu, Modifier.width(if (w < 700.dp) 240.dp else 300.dp).fillMaxHeight())
+                        }
                     }
                 } else {
                     HologramCard(vm, shown, elapsed, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp))
-                    Spacer(Modifier.height(8.dp)); StatePills(shown); Spacer(Modifier.height(6.dp))
-                    ChatPane(vm, input, { input = it }, { picker.launch(arrayOf("*/*")) }, Modifier.weight(1.05f).fillMaxWidth())
+                    Spacer(Modifier.height(6.dp)); Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { StatePills(shown) }; Spacer(Modifier.height(4.dp))
+                    MessageList(vm, Modifier.weight(1.05f).fillMaxWidth())
+                    ChipsRow(vm, pick) { showLeft = true }
+                    AttachRow(vm)
+                    InputBar(vm, input) { input = it }
+                }
+            }
+            if (!inlineLeft) AnimatedVisibility(showLeft, enter = fadeIn(), exit = fadeOut()) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).tap { showLeft = false }) {
+                    ModulesPanel(vm, { input = it; showLeft = false }, { showLeft = false; pick() },
+                        Modifier.align(Alignment.CenterStart).padding(12.dp).width(270.dp).fillMaxHeight(0.92f).tap {})
                 }
             }
         }
@@ -416,40 +452,54 @@ private fun HologramCard(vm: JarvisViewModel, shown: State, elapsed: Long, modif
         State.THINKING -> "${vm.stage.ifBlank { "Processando" }} · ${elapsed}s"
         State.SPEAKING -> "Respondendo por voz"
     }
-    Box(modifier.clip(R20).background(Brush.verticalGradient(listOf(Color(0xFF1B2335), Color(0xFF222C44)))).border(1.dp, GlassLine, R20)) {
-        NucleoHologram(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(),
+    Box(modifier.clip(R20).background(Brush.radialGradient(listOf(Color(0xFF2A3552), Color(0xFF1B2335)), radius = 900f)).border(1.dp, GlassLine, R20)) {
+        NucleoHologram(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
             onTap = { vm.listenNow() },
             onLong = { vm.updateCfg(vm.cfg.copy(voiceViz = when (vm.cfg.voiceViz) { "bars" -> "wave"; "wave" -> "pulse"; else -> "bars" })) })
         Row(Modifier.align(Alignment.TopStart).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(5.dp).clip(CircleShape).background(Muted))
             Text("VISUALIZAÇÃO ATIVA", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
         }
-        Text("JARVIS / CORE", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp))
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp, start = 12.dp, end = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (vm.state == State.THINKING) Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) { NeonButton("Cancelar", pad = 8.dp, icon = Ico.CLOSE) { vm.cancel() } }
+        else Text("JARVIS / CORE", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp))
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp, start = 12.dp, end = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(6.dp).clip(CircleShape).background(stateColor(shown)))
                 Text(stateTitle(shown), color = Color.White, fontSize = 12.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
             }
             Text(sub, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (vm.state == State.THINKING) NeonButton("Cancelar", pad = 8.dp, icon = Ico.CLOSE) { vm.cancel() }
         }
     }
 }
 
 @Composable
 private fun StatePills(shown: State) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Glass).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            State.values().forEach { s ->
-                val sel = s == shown
-                val bg by animateColorAsState(if (sel) Color.White.copy(alpha = 0.10f) else Color.Transparent, label = "pill")
-                Row(Modifier.clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (sel) stateColor(s) else Muted.copy(alpha = 0.5f)))
-                    Text(stateTitle(s).lowercase().replaceFirstChar { it.uppercase() }, color = if (sel) Color.White else Muted, fontSize = 11.sp)
-                }
+    Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Glass).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        State.values().forEach { s ->
+            val sel = s == shown
+            val bg by animateColorAsState(if (sel) Color.White.copy(alpha = 0.10f) else Color.Transparent, label = "pill")
+            Row(Modifier.clip(RoundedCornerShape(16.dp)).background(bg).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(if (sel) stateColor(s) else Muted.copy(alpha = 0.5f)))
+                Text(stateTitle(s).lowercase().replaceFirstChar { it.uppercase() }, color = if (sel) Color.White else Muted, fontSize = 11.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun PillsRow(shown: State, showLeft: Boolean, showRight: Boolean, onLeft: () -> Unit, onRight: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SideToggle(Ico.PANEL_L, showLeft, onLeft)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { StatePills(shown) }
+        SideToggle(Ico.PANEL_R, showRight, onRight)
+    }
+}
+
+@Composable
+private fun SideToggle(icon: Ico, on: Boolean, onClick: () -> Unit) {
+    Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(if (on) Color.White.copy(alpha = 0.10f) else Glass).tap(onClick), contentAlignment = Alignment.Center) {
+        NeonIcon(icon, Modifier.size(18.dp), if (on) Color.White else Muted)
     }
 }
 
@@ -463,37 +513,125 @@ private fun Chip(text: String, icon: Ico, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatPane(vm: JarvisViewModel, input: String, onInput: (String) -> Unit, onPick: () -> Unit, modifier: Modifier) {
+private fun ChipsRow(vm: JarvisViewModel, onPick: () -> Unit, onModules: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Chip("Anexar", Ico.CLIP, onPick)
+        if (onModules != null) Chip("Módulos", Ico.BOLT, onModules)
+        Chip("Verificar celular", Ico.SHIELD) { vm.runScanNow() }
+        Chip("Limpar", Ico.TRASH) { vm.clearChat() }
+    }
+}
+
+@Composable
+private fun AttachRow(vm: JarvisViewModel) {
+    if (vm.attachments.isEmpty()) return
+    LazyRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(vm.attachments) { a ->
+            Row(Modifier.clip(R12).background(Field).border(1.dp, Cyan.copy(alpha = 0.5f), R12).padding(horizontal = 10.dp, vertical = 6.dp)
+                .tap { vm.removeAttachment(a) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(a.name, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
+                NeonIcon(Ico.CLOSE, Modifier.size(14.dp), Cyan)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InputBar(vm: JarvisViewModel, input: String, onInput: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(R20).background(Glass).border(1.dp, GlassLine, R20).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        NeonField(input, onInput, modifier = Modifier.weight(1f), placeholder = "Pergunte qualquer coisa ao Jarvis...",
+            singleLine = false, onSend = { vm.send(input); onInput("") }, onFocus = { vm.setTyping(it) })
+        Spacer(Modifier.width(8.dp))
+        NeonButton(modifier = Modifier.size(46.dp), shape = CircleShape, active = vm.state == State.LISTENING, pad = 0.dp, icon = Ico.MIC) { vm.listenNow() }
+        Spacer(Modifier.width(6.dp))
+        NeonButton(modifier = Modifier.size(46.dp), shape = CircleShape, pad = 0.dp, icon = Ico.SEND) { vm.send(input); onInput("") }
+    }
+}
+
+@Composable
+private fun MessageList(vm: JarvisViewModel, modifier: Modifier, hPad: Dp = 12.dp) {
     val list = rememberLazyListState()
     LaunchedEffect(vm.msgs.size, vm.msgs.lastOrNull()?.text?.length) {
         if (vm.msgs.isNotEmpty()) list.scrollToItem(vm.msgs.size - 1, 100000)
     }
-    Column(modifier) {
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(vm.msgs) { m -> Bubble(m) { a -> if (a.startsWith("install:")) vm.installRun(a.removePrefix("install:")) } }
+    LazyColumn(modifier.padding(horizontal = hPad), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(vm.msgs) { m -> Bubble(m) { a -> if (a.startsWith("install:")) vm.installRun(a.removePrefix("install:")) } }
+    }
+}
+
+private class Mod(val icon: Ico, val title: String, val sub: String, val prefill: String?, val action: (() -> Unit)? = null)
+
+@Composable
+private fun ModulesPanel(vm: JarvisViewModel, onPrefill: (String) -> Unit, onPick: () -> Unit, modifier: Modifier) {
+    val mods = listOf(
+        Mod(Ico.SEARCH, "Pesquisa web", "Pesquisar na internet", "Pesquise na web sobre "),
+        Mod(Ico.FOLDER, "Arquivos", "Pastas, ler e editar código", "Liste os arquivos da pasta Download"),
+        Mod(Ico.TERMINAL, "Terminal", "Comandos Linux (curl, git)", "No terminal, rode: "),
+        Mod(Ico.CODE, "GitHub", "Repositórios e código", "Liste meus repositórios do GitHub"),
+        Mod(Ico.BOLT, "Automações", "Alarmes, apps e ligações", "Crie um alarme para "),
+        Mod(Ico.SHIELD, "Segurança", "Verificar o celular", null) { vm.runScanNow() },
+        Mod(Ico.CLIP, "Anexos", "Fotos, zips e arquivos", null) { onPick() },
+        Mod(Ico.DOWNLOAD, "Nova versão", "Gerar build do Jarvis", "Faça um build do app"),
+    )
+    Column(modifier.clip(R20).background(Panel.copy(alpha = 0.97f)).border(1.dp, GlassLine, R20).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("MÓDULOS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.weight(1f))
+            Text("${mods.size}", color = Muted, fontSize = 11.sp)
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("Anexar", Ico.CLIP, onPick)
-            Chip("Verificar celular", Ico.SHIELD) { vm.runScanNow() }
-            Chip("Limpar", Ico.TRASH) { vm.clearChat() }
-        }
-        if (vm.attachments.isNotEmpty()) LazyRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(vm.attachments) { a ->
-                Row(Modifier.clip(R12).background(Field).border(1.dp, Cyan.copy(alpha = 0.5f), R12).padding(horizontal = 10.dp, vertical = 6.dp)
-                    .tap { vm.removeAttachment(a) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(a.name, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
-                    NeonIcon(Ico.CLOSE, Modifier.size(14.dp), Cyan)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            mods.forEach { m ->
+                Row(Modifier.fillMaxWidth().clip(R12).background(Glass).border(1.dp, GlassLine, R12)
+                    .tap { val act = m.action; if (act != null) act() else onPrefill(m.prefill.orEmpty()) }.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+                        NeonIcon(m.icon, Modifier.size(18.dp), Color(0xFFD5DEEE))
+                    }
+                    Column {
+                        Text(m.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(m.sub, color = Muted, fontSize = 11.sp)
+                    }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(R20).background(Glass).border(1.dp, GlassLine, R20).padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            NeonField(input, onInput, modifier = Modifier.weight(1f), placeholder = "Pergunte qualquer coisa ao Jarvis...",
-                singleLine = false, onSend = { vm.send(input); onInput("") }, onFocus = { vm.setTyping(it) })
-            Spacer(Modifier.width(8.dp))
-            NeonButton(modifier = Modifier.size(46.dp), shape = CircleShape, active = vm.state == State.LISTENING, pad = 0.dp, icon = Ico.MIC) { vm.listenNow() }
-            Spacer(Modifier.width(6.dp))
-            NeonButton(modifier = Modifier.size(46.dp), shape = CircleShape, pad = 0.dp, icon = Ico.SEND) { vm.send(input); onInput("") }
+        Column(Modifier.fillMaxWidth().clip(R12).background(Glass).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("MODELO", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
+            Text(vm.cfg.model, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun ControlRow(icon: Ico, text: String, trailing: String?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(R12).background(Glass).border(1.dp, GlassLine, R12).tap(onClick).padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NeonIcon(icon, Modifier.size(16.dp), Color(0xFFD5DEEE))
+        Text(text, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (trailing != null) Text(trailing, color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
+    }
+}
+
+@Composable
+private fun ActivityPanel(vm: JarvisViewModel, openMenu: () -> Unit, modifier: Modifier) {
+    var ctrl by remember { mutableStateOf(true) }
+    val rot by animateFloatAsState(if (ctrl) 180f else 0f, label = "ctrl")
+    Column(modifier.clip(R20).background(Glass).border(1.dp, GlassLine, R20).padding(12.dp)) {
+        Text("ATIVIDADE DO ASSISTENTE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text("Histórico da sessão", color = Muted, fontSize = 10.sp)
+        Spacer(Modifier.height(8.dp))
+        MessageList(vm, Modifier.weight(1f).fillMaxWidth(), 0.dp)
+        Row(Modifier.fillMaxWidth().tap { ctrl = !ctrl }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("CONTROLES", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+            NeonIcon(Ico.CHEVRON, Modifier.size(16.dp).rotate(rot), Muted)
+        }
+        AnimatedVisibility(ctrl, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ControlRow(Ico.MIC, "Palmas", if (vm.cfg.clap) "ON" else "OFF") { vm.updateCfg(vm.cfg.copy(clap = !vm.cfg.clap)) }
+                ControlRow(Ico.BOLT, "Responder por voz", if (vm.cfg.speak) "ON" else "OFF") { vm.updateCfg(vm.cfg.copy(speak = !vm.cfg.speak)) }
+                ControlRow(Ico.CLOSE, "Interromper resposta", null) { vm.interrupt() }
+                ControlRow(Ico.TRASH, "Limpar conversa", null) { vm.clearChat() }
+                ControlRow(Ico.MENU, "Configurações", null, openMenu)
+            }
         }
     }
 }
@@ -686,6 +824,18 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonField(c.repo, { vm.updateCfg(c.copy(repo = it)) }, "REPOSITÓRIO DO APP", placeholder = "dono/repositorio")
             Text("Com o token o Jarvis gerencia seu GitHub; toda ação que escreve pede sua permissão.", color = Muted, fontSize = 12.sp)
         }
+        Section("Terminal Linux") {
+            val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            Text(vm.termuxStatus(), color = Muted, fontSize = 12.sp)
+            NeonButton("Instalar o Termux", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.OPEN) {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/com.termux/")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            NeonButton("Permitir acesso ao Termux", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.CHECK) { permLauncher.launch("com.termux.permission.RUN_COMMAND") }
+            NeonButton("Copiar comando de configuração", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TERMINAL) { vm.copyTermuxSetup() }
+            NeonButton("Abrir o Termux", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TERMINAL) { vm.openTermux() }
+            Text("1) Instale o Termux pelo F-Droid ou GitHub (não pela Play Store). 2) Abra o Termux e cole o comando copiado. 3) Em Configurações do Android, deixe o Termux com \"Exibir sobre outros apps\" ligado. Sem o Termux, o Jarvis usa o shell do Android e um curl embutido.",
+                color = Muted, fontSize = 12.sp)
+        }
         Section("Pesquisa e segurança") {
             NeonField(c.firecrawl, { vm.updateCfg(c.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL)", secret = true)
             NeonToggle("Verificar o celular 1x por dia", c.autoScan) { vm.updateCfg(c.copy(autoScan = it)) }
@@ -701,12 +851,12 @@ fun SettingsPanel(vm: JarvisViewModel) {
 
 // ---------- núcleo: nuvem de partículas + emblema; ao falar, barras laranja no ritmo da voz ----------
 
-private const val NU_N = 2300
+private const val NU_N = 4200
 
 @Composable
 fun NucleoHologram(
     state: State, level: () -> Float, skin: String, modifier: Modifier = Modifier,
-    onTap: () -> Unit = {}, onLong: () -> Unit = {}
+    bottomInset: Dp = 0.dp, onTap: () -> Unit = {}, onLong: () -> Unit = {}
 ) {
     val speed by animateFloatAsState(when (state) { State.THINKING -> 2.6f; State.LISTENING -> 1.4f; State.SPEAKING -> 1.2f; else -> 1f }, tween(700), label = "ns")
     val think by animateFloatAsState(if (state == State.THINKING) 1f else 0f, tween(500), label = "nt")
@@ -735,7 +885,7 @@ fun NucleoHologram(
                 val rad = sqrt(1f - y * y)
                 val th = i * 2.3999631f
                 d[i * 5] = cos(th) * rad; d[i * 5 + 1] = y; d[i * 5 + 2] = sin(th) * rad
-                d[i * 5 + 3] = if (r.nextFloat() < 0.68f) 0.90f + 0.18f * r.nextFloat() else 0.30f + 1.15f * r.nextFloat().let { it * it }
+                d[i * 5 + 3] = if (r.nextFloat() < 0.72f) 0.86f + 0.26f * ((r.nextFloat() + r.nextFloat() + r.nextFloat()) / 3f) else 0.25f + 1.35f * r.nextFloat().let { it * it }
                 d[i * 5 + 4] = r.nextFloat()
             }
         }
@@ -749,9 +899,10 @@ fun NucleoHologram(
             val t = phase
             val L = lv.coerceIn(0f, 1f)
             val w = size.width; val h = size.height
-            val cx = w / 2f; val cy = h / 2f
-            val R = min(w, h) * 0.36f
             val dp = 1.dp.toPx()
+            val ah = h - bottomInset.toPx()
+            val cx = w / 2f; val cy = ah / 2f
+            val R = min(w, ah) * 0.38f
             val pulse = 0.5f + 0.5f * sin(t * (2.2f + think * 3f))
             val yaw = t * 0.12f; val pit = 0.28f
             val cyw = cos(yaw); val syw = sin(yaw); val cp = cos(pit); val sp = sin(pit)
@@ -783,9 +934,10 @@ fun NucleoHologram(
             drawOval(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), Offset(cx, fy), R * 1.2f),
                 Offset(cx - R * 1.2f, fy - R * 0.12f), Size(R * 2.4f, R * 0.24f))
             // partículas
-            drawPoints(back, PointMode.Points, Color(0x66A9B8D6), 1.3f * dp, StrokeCap.Round)
-            drawPoints(mid, PointMode.Points, Color(0xAADDE6F7), 1.7f * dp, StrokeCap.Round)
-            drawPoints(front, PointMode.Points, Color(0xEEFFFFFF), 2.1f * dp, StrokeCap.Round)
+            drawCircle(Color.White.copy(alpha = 0.05f), R * 1.12f, Offset(cx, cy), style = Stroke(1f * dp))
+            drawPoints(back, PointMode.Points, Color(0x55B4C3E0), 0.8f * dp, StrokeCap.Round)
+            drawPoints(mid, PointMode.Points, Color(0x99E4ECFB), 1.0f * dp, StrokeCap.Round)
+            drawPoints(front, PointMode.Points, Color(0xE6FFFFFF), 1.25f * dp, StrokeCap.Round)
             // anel do emblema + ondas ao escutar
             val er = 41f * dp
             drawCircle(Color.White.copy(alpha = 0.35f * (1f - speak)), er, Offset(cx, cy), style = Stroke(1.5f * dp))
@@ -835,6 +987,6 @@ fun NucleoHologram(
             }
         }
         Image(painterResource(R.drawable.logo), null,
-            Modifier.align(Alignment.Center).size(76.dp).clip(CircleShape).graphicsLayer { alpha = 1f - speak })
+            Modifier.align(Alignment.Center).offset(y = -(bottomInset / 2)).size(72.dp).clip(CircleShape).graphicsLayer { alpha = 1f - speak })
     }
 }

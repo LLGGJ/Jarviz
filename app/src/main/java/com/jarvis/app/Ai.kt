@@ -310,7 +310,7 @@ class AiClient {
                 val t = r.body?.string().orEmpty()
                 if (!r.isSuccessful) error("HTTP ${r.code}")
                 val arr = JSONObject(t).getJSONArray("models")
-                val skip = listOf("tts", "image", "live", "embedding", "audio", "transcribe", "robotics", "computer-use", "omni", "imagen", "aqa")
+                val skip = listOf("tts", "image", "live", "embedding", "audio", "transcribe", "robotics", "computer-use", "omni", "imagen", "aqa", "banana", "nano", "veo", "lyria", "deep-research", "customtools")
                 return (0 until arr.length()).map { arr.getJSONObject(it) }.filter { o ->
                     val methods = o.optJSONArray("supportedGenerationMethods")
                     val name = o.getString("name")

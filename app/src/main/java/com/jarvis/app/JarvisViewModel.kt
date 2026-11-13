@@ -41,12 +41,17 @@ private const val SYS_TOOLS = " Você controla o GitHub (github_api e atalhos), 
     "PROGRAMAR O PRÓPRIO JARVIS: o código fica no repositório do app em app/src/main/java/com/jarvis/app/*.kt. " +
     "Fluxo: github_list_dir/github_read_file para entender, crie uma branch jarvis/<assunto>, altere com github_edit_file (troca de trecho único) " +
     "ou github_commit_file (arquivo inteiro), abra github_open_pr, dispare app_build com ref = a branch e, quando o build passar, " +
-    "o usuário instala pelo botão ou por app_install. Nunca faça merge sem o usuário pedir."
+    "o usuário instala pelo botão ou por app_install. Nunca faça merge sem o usuário pedir. " +
+    "ARQUIVOS DO CELULAR: use fs_list e fs_read para entrar nas pastas e ler código; fs_edit (trecho único) ou fs_write (arquivo inteiro) para alterar. " +
+    "TERMINAL LINUX: terminal_run executa comandos reais (curl, git, python...) e o resultado também aparece para o usuário; resuma o que importa. " +
+    "Se precisar de uma ferramenta que não está disponível, chame ativar_ferramentas."
+private const val SYS_META = " Se o pedido envolver GitHub/código, arquivos e pastas do celular, terminal Linux, pesquisa na web ou controle do celular, chame ativar_ferramentas com os grupos necessários antes de dizer que não consegue."
 
 private val ENDERS = Regex("[.!?…]+[\")\\]]?(\\s|$)|\\n")
 private val RE_PHONE = Regex("(?i)alarm|timer|cron[oô]metro|lanterna|volume|ligar|liga (para|pra)|ligue|mensagem|whats|sms|\\babr(e|ir)\\b|agenda|evento|lembre|despert")
-private val RE_GIT = Regex("(?i)github|reposit|\\brepo\\b|commit|pull request|\\bpr\\b|issue|\\bbuild\\b|apk|instal|c[oó]digo|programa|adiciona|corrig|\\bbug\\b|branch|workflow|jarvis")
-private val RE_FILES = Regex("(?i)pasta|arquivo|\\bzip\\b|extra[ií]|download|suspeit|v[ií]rus|seguran[cç]a|escane|verific\\w* (o |meu )?celular|anexo")
+private val RE_GIT = Regex("(?i)github|reposit|\\brepo\\b|commit|pull request|\\bpr\\b|issue|\\bbuild\\b|apk|instal|c[oó]digo|programa|adiciona|corrig|\\bbug\\b|branch|workflow|jarvis|atualiza|modific|alter|edit|troc|mud(a|ar|e)\\b|remov|ajust|melhor|funcionalidade|recurso|\\btela\\b|visual")
+private val RE_FILES = Regex("(?i)pasta|arquivo|\\bzip\\b|extra[ií]|download|suspeit|v[ií]rus|seguran[cç]a|escane|celular|telefone|armazenamento|dcim|sdcard|anexo|projeto|diret[oó]rio")
+private val RE_TERM = Regex("(?i)terminal|linux|\\bshell\\b|\\bbash\\b|\\bcurl\\b|\\bwget\\b|\\bping\\b|\\bssh\\b|comando|execut|\\bpython\\b|\\bnpm\\b|\\bnode\\b|\\bgit (clone|pull|push|status)\\b")
 private val RE_WEB = Regex("(?i)pesquis|busca|busque|google|not[ií]cia|cota[cç][aã]o|pre[cç]o|clima|tempo em|quem (é|e|foi)|o que (é|e)\\b|[úu]ltim|atual")
 private val RE_CODE = Regex("(?i)programa|c[oó]digo|kotlin|\\bbug\\b|erro|fun[cç][aã]o|implement|otimiz|refator|analis|racioc|explique|calcul|demonstr")
 
@@ -59,6 +64,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val files = FileTools(app)
     private val security = Security(app)
     private val updater = Updater(app)
+    private val terminal = TerminalTools(app)
     var cfg by mutableStateOf(prefs.load()); private set
     var state by mutableStateOf(State.IDLE); private set
     var speakingActive by mutableStateOf(false); private set
@@ -140,7 +146,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         tool("web_search", "Pesquisa na web e devolve títulos, links e resumos", "query"),
         tool("web_fetch", "Lê o texto de uma página web pelo link", "url"),
         tool("fs_list", "Lista uma pasta do celular (ex: Download, DCIM, ou caminho completo). Vazio = armazenamento principal", "path?"),
-        tool("fs_read", "Lê um arquivo de texto do celular", "path"),
+        tool("fs_read", "Lê um arquivo de texto do celular. from_line/to_line opcionais para ler só um trecho (com números de linha)", "path", "from_line?", "to_line?"),
+        tool("fs_write", "Cria ou substitui um arquivo do celular com o conteúdo INTEIRO (guarda cópia do original)", "path", "content"),
+        tool("fs_edit", "Troca um trecho ÚNICO de um arquivo do celular (old = trecho exato que aparece 1 vez; new = novo trecho). Guarda cópia do original", "path", "old", "new"),
+        tool("fs_mkdir", "Cria uma pasta no celular", "path"),
+        tool("fs_move", "Move ou renomeia um arquivo ou pasta do celular", "from", "to"),
+        tool("fs_delete", "Apaga um arquivo ou pasta do celular (não dá para desfazer)", "path"),
+        tool("terminal_run", "Executa um comando Linux no terminal (Termux) e devolve a saída. Ex: curl, git, python. O resultado também aparece para o usuário", "command"),
+        tool("ativar_ferramentas", "Ativa mais ferramentas quando precisar. grupos separados por vírgula: phone (celular), git (GitHub e build do app), fs (arquivos e pastas do celular), web (pesquisa), term (terminal Linux)", "grupos"),
         tool("fs_extract_zip", "Extrai um zip numa pasta nova (dest opcional)", "path", "dest?"),
         tool("security_scan", "Verifica o celular por sinais suspeitos (apps, permissões, arquivos) e devolve um relatório"),
         tool("phone_set_alarm", "Cria um alarme. hour 0-23, minute 0-59", "hour", "minute", "label?"),
@@ -169,31 +182,42 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         return JSONObject().put("type", "function").put("function", fn)
     }
 
-    /** Modo rápido: só manda ao modelo as ferramentas do assunto (nenhuma em conversa simples). */
-    private fun toolsFor(text: String, hasAtt: Boolean): JSONArray {
-        if (!cfg.fast) { lastGit = true; return JSONArray(toolDefs) }
+    private var activeGroups: Set<String> = emptySet()
+    private val extraGroups = mutableSetOf<String>()
+
+    /** Modo rápido: escolhe os grupos de ferramentas pelo assunto (nenhum em conversa simples). */
+    private fun routeGroups(text: String, hasAtt: Boolean): Set<String> {
+        if (!cfg.fast) return setOf("phone", "git", "fs", "web", "term")
         var g = mutableSetOf<String>()
         if (RE_PHONE.containsMatchIn(text)) g.add("phone")
         if (RE_GIT.containsMatchIn(text)) { g.add("git"); g.add("web") }
         if (RE_FILES.containsMatchIn(text) || hasAtt) g.add("fs")
+        if (RE_TERM.containsMatchIn(text)) g.add("term")
         if (RE_WEB.containsMatchIn(text)) g.add("web")
         if (g.isEmpty() && text.length < 50) g = sticky.toMutableSet() // respostas curtas ("sim", "pode") mantêm o assunto
         sticky = g
-        lastGit = "git" in g
+        return g
+    }
+
+    private fun buildTools(groups: Set<String>): JSONArray {
+        activeGroups = groups
+        lastGit = "git" in groups
         return JSONArray(toolDefs.filter { d ->
             val n = d.getJSONObject("function").getString("name")
-            ("phone" in g && n.startsWith("phone_")) || ("git" in g && (n.startsWith("github_") || n.startsWith("app_"))) ||
-                ("fs" in g && (n.startsWith("fs_") || n == "security_scan")) || ("web" in g && n.startsWith("web_"))
+            n == "ativar_ferramentas" || ("phone" in groups && n.startsWith("phone_")) ||
+                ("git" in groups && (n.startsWith("github_") || n.startsWith("app_"))) ||
+                ("fs" in groups && (n.startsWith("fs_") || n == "security_scan")) ||
+                ("web" in groups && n.startsWith("web_")) || ("term" in groups && n.startsWith("terminal_"))
         })
     }
 
     /** Pensa só quando precisa: conversa simples vai sem raciocínio; programação e tarefas difíceis usam o esforço escolhido. */
-    private fun effortFor(text: String): String =
-        if (!cfg.fast) cfg.effort else if (lastGit || RE_CODE.containsMatchIn(text) || text.length > 350) cfg.effort else "none"
+    private fun effortFor(text: String, groups: Set<String>): String =
+        if (!cfg.fast) cfg.effort else if ("git" in groups || RE_CODE.containsMatchIn(text) || text.length > 350) cfg.effort else "none"
 
     private fun systemPrompt(withTools: Boolean): String {
         val now = SimpleDateFormat("EEEE, dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date())
-        return SYS_BASE + (if (withTools) SYS_TOOLS else "") + " Agora são: $now (fuso ${TimeZone.getDefault().id}). Repositório do app: ${cfg.repo}."
+        return SYS_BASE + (if (withTools) SYS_TOOLS else SYS_META) + " Agora são: $now (fuso ${TimeZone.getDefault().id}). Repositório do app: ${cfg.repo}."
     }
 
     // ---------- configuração e permissões ----------
@@ -209,6 +233,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun pause() { clap.stop() }
     fun decide(ok: Boolean) { pending?.result?.complete(ok); pending = null }
     fun requestFiles() { files.requestAll() }
+    fun termuxStatus(): String = terminal.status()
+    fun openTermux() = terminal.open()
+    fun copyTermuxSetup() = terminal.copySetup()
     fun noteTouch() { lastTouch = SystemClock.elapsedRealtime() }
     fun setTyping(v: Boolean) { typing = v; if (!v) lastTouch = SystemClock.elapsedRealtime() }
 
@@ -277,6 +304,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearChat() { msgs.clear(); convo.clear() }
+
+    /** Interrompe: cancela o pedido se estiver pensando, ou só para a fala. */
+    fun interrupt() {
+        if (state == State.THINKING) cancel()
+        else { voice.stopSpeaking(); speakingActive = false; state = State.IDLE; level = 0f; resumeClap() }
+    }
 
     fun testConnection() {
         if (cfg.key().isBlank()) { msgs.add(Msg("assistant", "Cole a API Key do provedor no menu primeiro.")); return }
@@ -419,6 +452,35 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
             return phone.run(n, a)
         }
+        if (n == "ativar_ferramentas") {
+            val gs = a.optString("grupos").lowercase().split(",", " ", ";").map { it.trim() }.filter { it in setOf("phone", "git", "fs", "web", "term") }
+            if (gs.isEmpty()) return "Grupos válidos: phone, git, fs, web, term."
+            extraGroups.addAll(gs)
+            return "Ferramentas ativadas: ${gs.joinToString(", ")}. Pode usá-las agora."
+        }
+        if (n == "terminal_run") {
+            val cmd = a.optString("command")
+            if (cmd.isBlank()) return "Comando vazio."
+            if (!askApproval("Executar no terminal:\n$cmd")) return "O usuário negou a permissão."
+            val out = terminal.run(cmd)
+            note("```\n$ $cmd\n${out.take(3500)}\n```")
+            return out
+        }
+        if (n == "fs_write" || n == "fs_edit" || n == "fs_move" || n == "fs_delete") {
+            val path = a.optString("path").ifBlank { a.optString("from") }
+            val key = if (n == "fs_write" || n == "fs_edit") "fs:$path" else null
+            if (key == null || key !in approvedKeys) {
+                val detail = when (n) {
+                    "fs_write" -> "Gravar $path (${a.optString("content").length} caracteres)\n${a.optString("content").take(300)}"
+                    "fs_edit" -> "Editar $path\n- ${a.optString("old").take(250)}\n+ ${a.optString("new").take(250)}"
+                    "fs_move" -> "Mover ${a.optString("from")}\npara ${a.optString("to")}"
+                    else -> "APAGAR ${a.optString("path")} (não dá para desfazer)"
+                } + if (key != null) "\n\nAs próximas edições deste arquivo, nesta conversa, não pedem de novo." else ""
+                if (!askApproval(detail)) return "O usuário negou a permissão."
+                if (key != null) approvedKeys += key
+            }
+            return files.run(n, a)
+        }
         if (n.startsWith("web_")) return WebTools(cfg.firecrawl).run(n, a)
         if (n.startsWith("fs_")) return files.run(n, a)
         if (n == "security_scan") return security.report(security.scan())
@@ -521,7 +583,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         repeat(4) {
             try {
                 if (native.length() == plainLen) native.put(plainLen - 1, buildUser(c.api))
-                return ai.chat(c, systemPrompt(tools.length() > 0), native, tools) { onDelta(it) } to c
+                return ai.chat(c, systemPrompt(activeGroups.isNotEmpty()), native, tools) { onDelta(it) } to c
             } catch (e: IllegalStateException) {
                 last = e
                 val m = e.message.orEmpty()
@@ -551,12 +613,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         live.setLength(0); spoken = 0; liveShown = false; listSkipped = false; fence = false
         curMedia = atts.mapNotNull { runCatching { Attach.media(it) }.getOrNull() }
         curText = (text + atts.joinToString("") { "\n\n" + Attach.describe(it) }).take(60_000)
-        val tools = toolsFor(text, atts.isNotEmpty())
+        extraGroups.clear()
+        var groups = routeGroups(text, atts.isNotEmpty())
+        var tools = buildTools(groups)
         val native = JSONArray()
         convo.takeLast(12).forEach { (r, t) -> native.put(JSONObject().put("role", r).put("content", t)) }
         native.put(buildUser(cfg.api))
         val plainLen = native.length()
-        var c = cfg.copy(effort = effortFor(text))
+        var c = cfg.copy(effort = effortFor(text, groups))
         val gh = GitHub(cfg.ghToken)
         return try {
             repeat(10) {
@@ -572,6 +636,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 ai.appendAssistant(c.api, native, r)
                 val outs = r.calls.map { call -> stage = "Executando ${call.name}..."; call to execTool(gh, call).take(12_000) }
                 ai.appendResults(c.api, native, outs)
+                if (extraGroups.isNotEmpty()) {
+                    groups = groups + extraGroups; extraGroups.clear()
+                    tools = buildTools(groups); c = c.copy(effort = effortFor(text, groups))
+                }
             }
             "Não consegui concluir a tarefa."
         } catch (e: Exception) {

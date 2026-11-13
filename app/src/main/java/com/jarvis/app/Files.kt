@@ -63,6 +63,11 @@ class FileTools(private val ctx: Context) {
             "fs_list" -> list(a)
             "fs_read" -> read(a)
             "fs_extract_zip" -> extract(a)
+            "fs_write" -> write(a)
+            "fs_edit" -> edit(a)
+            "fs_mkdir" -> mkdir(a)
+            "fs_move" -> move(a)
+            "fs_delete" -> delete(a)
             else -> "Ferramenta desconhecida: $name"
         }
     } catch (e: Exception) {
@@ -91,7 +96,72 @@ class FileTools(private val ctx: Context) {
         val n = f.inputStream().use { it.read(buf) }
         if (n <= 0) return "(arquivo vazio)"
         if ((0 until minOf(n, 4096)).any { buf[it].toInt() == 0 }) return "Arquivo binário (${human(f.length())}); não dá para ler como texto."
-        return String(buf, 0, n).take(20_000)
+        val text = String(buf, 0, n)
+        val from = a.optString("from_line").toIntOrNull(); val to = a.optString("to_line").toIntOrNull()
+        if (from != null || to != null) {
+            val all = f.readLines()
+            val s0 = ((from ?: 1) - 1).coerceAtLeast(0); val e0 = (to ?: all.size).coerceAtMost(all.size)
+            return all.subList(s0.coerceAtMost(all.size), e0.coerceAtLeast(s0)).mapIndexed { i, l -> "${s0 + i + 1}: $l" }.joinToString("\n").take(20_000)
+        }
+        return text.take(20_000)
+    }
+
+    private fun backup(f: File) {
+        if (!f.isFile) return
+        try { f.copyTo(File(File(ctx.filesDir, "backups").apply { mkdirs() }, "${System.currentTimeMillis()}_${f.name}"), overwrite = true) } catch (e: Exception) { }
+    }
+
+    private fun write(a: JSONObject): String {
+        val f = resolve(a.getString("path"))
+        need(f)?.let { return it }
+        if (f.isDirectory) return "Isso é uma pasta: ${f.path}"
+        backup(f)
+        f.parentFile?.mkdirs()
+        val text = a.getString("content")
+        f.writeText(text)
+        return "Gravei ${text.length} caracteres em ${f.path} (cópia do original guardada nos backups do Jarvis)."
+    }
+
+    private fun edit(a: JSONObject): String {
+        val f = resolve(a.getString("path"))
+        need(f)?.let { return it }
+        if (!f.isFile) return "Arquivo não encontrado: ${f.path}"
+        val old = a.getString("old")
+        if (old.isEmpty()) return "O trecho a trocar está vazio."
+        val text = f.readText()
+        val n = text.split(old).size - 1
+        if (n != 1) return "O trecho aparece $n vezes em ${f.name} (precisa aparecer exatamente 1). Use um trecho maior e único."
+        backup(f)
+        f.writeText(text.replace(old, a.getString("new")))
+        return "Editei ${f.path} (cópia do original guardada nos backups do Jarvis)."
+    }
+
+    private fun mkdir(a: JSONObject): String {
+        val f = resolve(a.getString("path"))
+        need(f)?.let { return it }
+        return if (f.mkdirs() || f.isDirectory) "Pasta pronta: ${f.path}" else "Não consegui criar a pasta."
+    }
+
+    private fun move(a: JSONObject): String {
+        val src = resolve(a.getString("from")); val dst = resolve(a.getString("to"))
+        need(src)?.let { return it }
+        need(dst)?.let { return it }
+        if (!src.exists()) return "Não existe: ${src.path}"
+        dst.parentFile?.mkdirs()
+        if (src.renameTo(dst)) return "Movi para ${dst.path}"
+        src.copyRecursively(dst, overwrite = false); src.deleteRecursively()
+        return "Movi para ${dst.path}"
+    }
+
+    private fun delete(a: JSONObject): String {
+        val f = resolve(a.getString("path"))
+        need(f)?.let { return it }
+        val base = Environment.getExternalStorageDirectory().canonicalFile
+        if (f == base || f.path.length < 16 || f.parentFile == base && f.name in setOf("Download", "DCIM", "Documents", "Pictures", "Android"))
+            return "Por segurança não apago essa pasta: ${f.path}"
+        if (!f.exists()) return "Não existe: ${f.path}"
+        val n = if (f.isDirectory) f.walkTopDown().count() else 1
+        return if (f.deleteRecursively()) "Apaguei ${f.path} ($n item(ns))." else "Não consegui apagar."
     }
 
     private fun extract(a: JSONObject): String {
