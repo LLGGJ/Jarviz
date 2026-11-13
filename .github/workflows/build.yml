@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,7 +18,12 @@ jobs:
         with:
           gradle-version: 8.7
       - run: gradle assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Jarvis-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+      - name: Publicar o APK direto (Release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "Jarvis-${{ github.run_number }}.apk"
+          gh release create "build-${{ github.run_number }}" "Jarvis-${{ github.run_number }}.apk" \
+            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "Jarvis build ${{ github.run_number }}" \
+            --notes "APK direto. Build ${{ github.run_number }} (${{ github.ref_name }})" --prerelease
