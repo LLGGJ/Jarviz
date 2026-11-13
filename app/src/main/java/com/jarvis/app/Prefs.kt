@@ -14,12 +14,17 @@ data class Config(
     val api: String = "anthropic",
     val models: String = "",
     val repo: String = "LLGGJ/Jarviz",
-    val theme: String = "orb",
+    val theme: String = "hole",
     val firecrawl: String = "",
     val autoScan: Boolean = true,
     val provider: String = "flat",
     val geminiKey: String = "",
     val geminiModels: String = "",
+    val fast: Boolean = true,
+    val clapSens: String = "mid",
+    val voiceName: String = "",
+    val voiceRate: String = "1.0",
+    val voiceViz: String = "bars",
 ) {
     fun key() = if (provider == "gemini") geminiKey else apiKey
 }
@@ -28,23 +33,28 @@ class Prefs(ctx: Context) {
     private val sp = ctx.getSharedPreferences("jarvis2", Context.MODE_PRIVATE)
     private val d = Config()
     fun load() = Config(
-        sp.getString("apiKey", d.apiKey)!!,
-        sp.getString("baseUrl", d.baseUrl)!!,
-        sp.getString("model", d.model)!!,
-        sp.getString("effort", d.effort)!!,
-        sp.getString("ghToken", d.ghToken)!!,
-        sp.getBoolean("speak", d.speak),
-        sp.getBoolean("clap", d.clap),
-        sp.getString("preset", d.preset)!!,
-        sp.getString("api", d.api)!!,
-        sp.getString("models", d.models)!!,
-        sp.getString("repo", d.repo)!!,
-        sp.getString("theme", d.theme)!!,
-        sp.getString("firecrawl", d.firecrawl)!!,
-        sp.getBoolean("autoScan", d.autoScan),
-        sp.getString("provider", d.provider)!!,
-        sp.getString("geminiKey", d.geminiKey)!!,
-        sp.getString("geminiModels", d.geminiModels)!!,
+        apiKey = sp.getString("apiKey", d.apiKey)!!,
+        baseUrl = sp.getString("baseUrl", d.baseUrl)!!,
+        model = sp.getString("model", d.model)!!,
+        effort = sp.getString("effort", d.effort)!!,
+        ghToken = sp.getString("ghToken", d.ghToken)!!,
+        speak = sp.getBoolean("speak", d.speak),
+        clap = sp.getBoolean("clap", d.clap),
+        preset = sp.getString("preset", d.preset)!!,
+        api = sp.getString("api", d.api)!!,
+        models = sp.getString("models", d.models)!!,
+        repo = sp.getString("repo", d.repo)!!,
+        theme = sp.getString("theme2", d.theme)!!,
+        firecrawl = sp.getString("firecrawl", d.firecrawl)!!,
+        autoScan = sp.getBoolean("autoScan", d.autoScan),
+        provider = sp.getString("provider", d.provider)!!,
+        geminiKey = sp.getString("geminiKey", d.geminiKey)!!,
+        geminiModels = sp.getString("geminiModels", d.geminiModels)!!,
+        fast = sp.getBoolean("fast", d.fast),
+        clapSens = sp.getString("clapSens", d.clapSens)!!,
+        voiceName = sp.getString("voiceName", d.voiceName)!!,
+        voiceRate = sp.getString("voiceRate", d.voiceRate)!!,
+        voiceViz = sp.getString("voiceViz", d.voiceViz)!!,
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -54,7 +64,9 @@ class Prefs(ctx: Context) {
         .putString("ghToken", c.ghToken).putBoolean("speak", c.speak)
         .putBoolean("clap", c.clap).putString("preset", c.preset)
         .putString("api", c.api).putString("models", c.models)
-        .putString("repo", c.repo).putString("theme", c.theme)
+        .putString("repo", c.repo).putString("theme2", c.theme)
         .putString("firecrawl", c.firecrawl).putBoolean("autoScan", c.autoScan)
-        .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels).apply()
+        .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels)
+        .putBoolean("fast", c.fast).putString("clapSens", c.clapSens)
+        .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz).apply()
 }

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -78,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -207,7 +210,8 @@ fun NeonButton(
 @Composable
 fun NeonField(
     value: String, onChange: (String) -> Unit, label: String = "", modifier: Modifier = Modifier,
-    placeholder: String = "", secret: Boolean = false, singleLine: Boolean = true, onSend: (() -> Unit)? = null
+    placeholder: String = "", secret: Boolean = false, singleLine: Boolean = true, onSend: (() -> Unit)? = null,
+    onFocus: ((Boolean) -> Unit)? = null
 ) {
     var focused by remember { mutableStateOf(false) }
     val bc by animateColorAsState(if (focused) Cyan else Cyan.copy(alpha = 0.25f), label = "bc")
@@ -219,7 +223,7 @@ fun NeonField(
         BasicTextField(
             value = value, onValueChange = onChange,
             modifier = Modifier.fillMaxWidth().clip(R12).background(Field).border(1.5.dp, bc, R12)
-                .onFocusChanged { focused = it.isFocused }.padding(12.dp),
+                .onFocusChanged { focused = it.isFocused; onFocus?.invoke(it.isFocused) }.padding(12.dp),
             textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
             cursorBrush = SolidColor(Cyan), singleLine = singleLine, maxLines = if (singleLine) 1 else 3,
             visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
@@ -334,14 +338,19 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addUris(it) }
     LaunchedEffect(vm.msgs.size) { if (vm.msgs.isNotEmpty()) list.animateScrollToItem(vm.msgs.size - 1) }
-    val label = when (vm.state) {
+    val shown = vm.shown
+    val label = when (shown) {
         State.IDLE -> if (vm.cfg.clap) "Bata 2 palmas, toque ou arraste o holograma" else "Toque no holograma para falar"
         State.LISTENING -> vm.partial.ifBlank { "Ouvindo..." }
         State.THINKING -> "${vm.stage.ifBlank { "Pensando..." }} ${elapsed}s"
         State.SPEAKING -> "Falando..."
     }
     val p = vm.pending
-    Box(Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding()) {
+    Box(
+        Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().pointerInput(Unit) {
+            awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); vm.noteTouch() } }
+        }
+    ) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 NeonButton(pad = 12.dp, icon = Ico.MENU, onClick = openMenu)
@@ -350,8 +359,18 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
                 Spacer(Modifier.width(10.dp))
                 Text("J.A.R.V.I.S", color = Cyan, fontSize = 18.sp, letterSpacing = 4.sp)
             }
-            if (vm.cfg.theme == "orb") OrbHologram(vm.state, { vm.level }, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
-            else Hologram(vm.state, Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() })
+            val hm = Modifier.fillMaxWidth().weight(1f).tap { vm.listenNow() }
+            when (vm.cfg.theme) {
+                "orb" -> OrbHologram(shown, { vm.level }, hm)
+                "net" -> Hologram(shown, hm)
+                else -> BlackHoleHologram(shown, { vm.level }, hm)
+            }
+            AnimatedVisibility(shown == State.SPEAKING, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                VoiceViz(vm.cfg.voiceViz, { vm.level }, Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp).tap {
+                    val next = when (vm.cfg.voiceViz) { "bars" -> "wave"; "wave" -> "pulse"; else -> "bars" }
+                    vm.updateCfg(vm.cfg.copy(voiceViz = next))
+                })
+            }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(label, color = Cyan.copy(alpha = 0.8f), fontSize = 13.sp, modifier = Modifier.weight(1f))
                 if (vm.state == State.THINKING) NeonButton("Cancelar", pad = 10.dp, icon = Ico.CLOSE) { vm.cancel() }
@@ -372,7 +391,7 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
                 NeonButton(modifier = Modifier.size(48.dp), shape = CircleShape, pad = 0.dp, icon = Ico.CLIP) { picker.launch(arrayOf("*/*")) }
                 Spacer(Modifier.width(8.dp))
                 NeonField(input, { input = it }, modifier = Modifier.weight(1f), placeholder = "Digite para o Jarvis...",
-                    singleLine = false, onSend = { vm.send(input); input = "" })
+                    singleLine = false, onSend = { vm.send(input); input = "" }, onFocus = { vm.setTyping(it) })
                 Spacer(Modifier.width(8.dp))
                 NeonButton(modifier = Modifier.size(48.dp), shape = CircleShape, active = vm.state == State.LISTENING,
                     pad = 0.dp, icon = Ico.MIC) { vm.listenNow() }
@@ -410,6 +429,12 @@ fun SettingsPanel(vm: JarvisViewModel) {
     val ctx = LocalContext.current
     val options = vm.availableModels() + CUSTOM
     val efforts = listOf("low", "medium", "high")
+    val themes = listOf("hole", "orb", "net")
+    val rates = listOf("0.9", "1.0", "1.1", "1.25")
+    val vizs = listOf("bars", "wave", "pulse")
+    val sens = listOf("low", "mid", "high")
+    val auto = "Automática (melhor disponível)"
+    val vopts = vm.voiceOptions
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Image(painterResource(R.drawable.logo), null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)))
@@ -443,18 +468,30 @@ fun SettingsPanel(vm: JarvisViewModel) {
                 }
             }
         }
-        Text("VISUAL DO HOLOGRAMA", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
-        NeonSegmented(listOf("Orbe", "Rede"), if (c.theme == "orb") 0 else 1) { vm.updateCfg(c.copy(theme = if (it == 0) "orb" else "net")) }
-        Text("ESFORÇO DE RACIOCÍNIO", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonToggle("Modo rápido (pensa e usa ferramentas só quando precisa)", c.fast) { vm.updateCfg(c.copy(fast = it)) }
+        Text("ESFORÇO DE RACIOCÍNIO (PARA PROGRAMAÇÃO E TAREFAS DIFÍCEIS)", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
         NeonSegmented(listOf("Baixo", "Médio", "Alto"), efforts.indexOf(c.effort).coerceAtLeast(0)) {
             vm.updateCfg(c.copy(effort = efforts[it]))
         }
-        NeonField(c.ghToken, { vm.updateCfg(c.copy(ghToken = it)) }, "TOKEN DO GITHUB (ghp_...)", placeholder = "ghp_xxxxxxxxxxxx", secret = true)
-        NeonField(c.repo, { vm.updateCfg(c.copy(repo = it)) }, "REPOSITÓRIO DO APP (BUILD)", placeholder = "dono/repositorio")
-        Text("Com o token o Jarvis lê e gerencia seu GitHub. Toda ação que escreve pede sua permissão.",
-            color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+        Text("VISUAL DO HOLOGRAMA", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonSegmented(listOf("Buraco negro", "Orbe", "Rede"), themes.indexOf(c.theme).coerceAtLeast(0)) { vm.updateCfg(c.copy(theme = themes[it])) }
+        Text("SKIN DA VOZ (MEXE NO RITMO DA FALA)", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonSegmented(listOf("Barras", "Onda", "Pulso"), vizs.indexOf(c.voiceViz).coerceAtLeast(0)) { vm.updateCfg(c.copy(voiceViz = vizs[it])) }
+        NeonSelect("VOZ DA IA", listOf(auto) + vopts.map { it.second }, vopts.firstOrNull { it.first == c.voiceName }?.second ?: auto) { n ->
+            vm.updateCfg(c.copy(voiceName = vopts.firstOrNull { it.second == n }?.first ?: "")); vm.previewVoice()
+        }
+        Text("VELOCIDADE DA VOZ", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonSegmented(listOf("Lenta", "Normal", "Rápida", "Turbo"), rates.indexOf(c.voiceRate).coerceAtLeast(1)) {
+            vm.updateCfg(c.copy(voiceRate = rates[it])); vm.previewVoice()
+        }
         NeonToggle("Responder por voz", c.speak) { vm.updateCfg(c.copy(speak = it)) }
         NeonToggle("Ativar com 2 palmas", c.clap) { vm.updateCfg(c.copy(clap = it)) }
+        Text("SENSIBILIDADE DAS PALMAS", color = Cyan.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 1.sp)
+        NeonSegmented(listOf("Baixa", "Média", "Alta"), sens.indexOf(c.clapSens).coerceAtLeast(1)) { vm.updateCfg(c.copy(clapSens = sens[it])) }
+        NeonField(c.ghToken, { vm.updateCfg(c.copy(ghToken = it)) }, "TOKEN DO GITHUB (ghp_...)", placeholder = "ghp_xxxxxxxxxxxx", secret = true)
+        Text("Com o token o Jarvis lê e gerencia seu GitHub. Toda ação que escreve pede sua permissão.",
+            color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+        NeonField(c.repo, { vm.updateCfg(c.copy(repo = it)) }, "REPOSITÓRIO DO APP (BUILD)", placeholder = "dono/repositorio")
         NeonToggle("Verificar o celular 1x por dia", c.autoScan) { vm.updateCfg(c.copy(autoScan = it)) }
         NeonField(c.firecrawl, { vm.updateCfg(c.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL, MELHORA A PESQUISA)", secret = true)
         NeonButton("Verificar meu celular agora", Modifier.fillMaxWidth(), icon = Ico.SHIELD) { vm.runScanNow() }
@@ -735,5 +772,178 @@ fun OrbHologram(state: State, level: () -> Float, modifier: Modifier = Modifier)
         drawPoints(mid, PointMode.Points, OrbBlue.copy(alpha = 0.85f), 3.2f, StrokeCap.Round)
         drawPoints(front, PointMode.Points, OrbLight, 4.4f, StrokeCap.Round)
         drawPoints(spark, PointMode.Points, OrbSpark.copy(alpha = 0.9f), 3.4f, StrokeCap.Round)
+    }
+}
+
+
+// ---------- buraco negro azul ----------
+
+private const val BH_N = 1700
+private const val BH_R = 520
+
+/** Buraco negro azul: horizonte de eventos preto, anel de fótons, disco de acreção em órbita (com brilho Doppler)
+ *  e halo de lente gravitacional. Ao bater palma o disco é sugado e uma onda de choque sai do centro;
+ *  com a voz o brilho pulsa e jatos azuis saem pelos polos. Arraste para girar e inclinar. */
+@Composable
+fun BlackHoleHologram(state: State, level: () -> Float, modifier: Modifier = Modifier) {
+    val speed by animateFloatAsState(when (state) { State.THINKING -> 2.4f; State.LISTENING -> 1.8f; State.SPEAKING -> 1.4f; else -> 1f }, tween(700), label = "bs")
+    val suck by animateFloatAsState(when (state) { State.LISTENING -> 1f; State.THINKING -> 0.6f; else -> 0f }, tween(600), label = "bk")
+    val speedNow by rememberUpdatedState(speed)
+    val levelFn by rememberUpdatedState(level)
+    var phase by remember { mutableFloatStateOf(0f) }
+    var lv by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) withFrameNanos { n ->
+            if (last != 0L) {
+                phase += (n - last) / 1_000_000_000f * speedNow
+                val tg = levelFn()
+                lv += (tg - lv) * (if (tg > lv) 0.4f else 0.07f)
+            }
+            last = n
+        }
+    }
+    val shock = remember { Animatable(1f) }
+    LaunchedEffect(state) { if (state == State.LISTENING) { shock.snapTo(0f); shock.animateTo(1f, tween(1100)) } }
+    var dragYaw by remember { mutableFloatStateOf(0f) }
+    var dragInc by remember { mutableFloatStateOf(0f) }
+    val disk = remember {
+        val r = Random(5)
+        FloatArray(BH_N * 4).also { d ->
+            for (i in 0 until BH_N) {
+                val u = r.nextFloat()
+                d[i * 4] = 1.55f + 2.65f * u * u
+                d[i * 4 + 1] = r.nextFloat() * 6.2831855f
+                d[i * 4 + 2] = (r.nextFloat() - 0.5f) * 0.10f
+                d[i * 4 + 3] = r.nextFloat()
+            }
+        }
+    }
+    val halo = remember {
+        val r = Random(9)
+        FloatArray(BH_R * 3).also { d ->
+            for (i in 0 until BH_R) {
+                d[i * 3] = 1.04f + 0.42f * r.nextFloat() * r.nextFloat()
+                d[i * 3 + 1] = r.nextFloat() * 6.2831855f
+                d[i * 3 + 2] = r.nextFloat()
+            }
+        }
+    }
+    val far = remember { List(6) { ArrayList<Offset>(BH_N) } }
+    val near = remember { List(6) { ArrayList<Offset>(BH_N) } }
+    val haloPts = remember { List(3) { ArrayList<Offset>(BH_R) } }
+    val hot = Color(0xFFD6F6FF); val mid = Color(0xFF4F9BFF); val deep = Color(0xFF1B4FD6)
+    val palette = listOf(hot, mid, deep)
+
+    Canvas(modifier.pointerInput(Unit) {
+        detectDragGestures { _, d -> dragYaw += d.x * 0.008f; dragInc = (dragInc + d.y * 0.006f).coerceIn(-0.25f, 0.9f) }
+    }) {
+        val t = phase
+        val L = (lv + (if (state == State.SPEAKING) 0.10f + 0.08f * sin(t * 5f) else 0f)).coerceIn(0f, 1f)
+        val cx = size.width / 2f; val cy = size.height * 0.46f
+        val S = min(size.width, size.height * 1.1f) * 0.115f * (1f + 0.05f * L)
+        val inc = (0.30f + dragInc).coerceIn(0.05f, 1.3f)
+        val ci = cos(inc); val si = sin(inc); val cw = cos(dragYaw); val sw = sin(dragYaw)
+        far.forEach { it.clear() }; near.forEach { it.clear() }; haloPts.forEach { it.clear() }
+        for (i in 0 until BH_N) {
+            val r0 = disk[i * 4]; val th0 = disk[i * 4 + 1]; val h = disk[i * 4 + 2]; val sd = disk[i * 4 + 3]
+            val r = (r0 * (1f - 0.22f * suck * (0.5f + 0.5f * sin(t * 2f + sd * 6f)))).coerceAtLeast(1.15f)
+            val th = th0 + 1.25f / (r0 * sqrt(r0)) * t
+            val x0 = r * cos(th); val z0 = r * sin(th); val y0 = h * r
+            val x1 = x0 * cw + z0 * sw; val z1 = -x0 * sw + z0 * cw
+            val y2 = y0 * ci - z1 * si; val z2 = y0 * si + z1 * ci
+            val f = 1f / (1f - z2 * 0.05f)
+            val p = Offset(cx + x1 * S * f, cy - y2 * S * f)
+            val tin = ((r0 - 1.55f) / 2.65f).coerceIn(0f, 1f)
+            val cc = if (tin < 0.34f) 0 else if (tin < 0.67f) 1 else 2
+            val beam = 0.5f + 0.5f * cos(th)
+            val b = cc * 2 + (if (beam > 0.55f) 1 else 0)
+            if (z2 < 0f) far[b].add(p) else near[b].add(p)
+        }
+        for (i in 0 until BH_R) {
+            val rho = halo[i * 3]; val a = halo[i * 3 + 1] + t * (0.35f + 0.5f * halo[i * 3 + 2])
+            val bright = 0.5f + 0.5f * cos(a + 0.6f)
+            val k = if (bright > 0.75f) 0 else if (bright > 0.35f) 1 else 2
+            haloPts[k].add(Offset(cx + rho * cos(a) * S, cy - rho * sin(a) * S * 0.97f))
+        }
+        val c0 = Offset(cx, cy)
+        drawCircle(Brush.radialGradient(listOf(deep.copy(alpha = 0.30f + 0.35f * L), Color.Transparent), c0, S * 6f), S * 6f, c0)
+        if (L > 0.2f) {
+            val len = S * (2.5f + 5f * L); val w = S * 0.18f
+            for (dir in listOf(-1f, 1f)) {
+                val jet = Path().apply { moveTo(cx - w, cy); lineTo(cx, cy + dir * len); lineTo(cx + w, cy); close() }
+                drawPath(jet, Brush.verticalGradient(listOf(mid.copy(alpha = 0.5f * L), Color.Transparent), startY = cy, endY = cy + dir * len))
+            }
+        }
+        for (b in 0..5) {
+            val cc = b / 2
+            drawPoints(far[b], PointMode.Points, palette[cc].copy(alpha = if (b % 2 == 1) 0.95f else 0.45f), 2.3f + (2 - cc) * 0.8f + L * 1.2f, StrokeCap.Round)
+        }
+        drawPoints(haloPts[2], PointMode.Points, deep.copy(alpha = 0.55f), 2.2f, StrokeCap.Round)
+        drawPoints(haloPts[1], PointMode.Points, mid.copy(alpha = 0.85f), 2.8f, StrokeCap.Round)
+        drawPoints(haloPts[0], PointMode.Points, hot.copy(alpha = 0.95f), 3.4f + L * 1.5f, StrokeCap.Round)
+        val pr = S * 1.06f
+        drawCircle(mid.copy(alpha = 0.18f + 0.2f * L), pr, c0, style = Stroke(S * 0.35f))
+        drawCircle(hot.copy(alpha = 0.45f + 0.4f * L), pr, c0, style = Stroke(S * 0.12f + L * 3f))
+        drawCircle(Color.White.copy(alpha = 0.85f), pr, c0, style = Stroke(1.8f))
+        drawCircle(Color.Black, S * 1.02f, c0)
+        for (b in 0..5) {
+            val cc = b / 2
+            drawPoints(near[b], PointMode.Points, palette[cc].copy(alpha = if (b % 2 == 1) 0.95f else 0.45f), 2.3f + (2 - cc) * 0.8f + L * 1.2f, StrokeCap.Round)
+        }
+        val sh = shock.value
+        if (sh < 1f) drawCircle(mid.copy(alpha = (1f - sh) * 0.8f), S * (1.2f + sh * 8f), c0, style = Stroke(3f + (1f - sh) * 6f))
+    }
+}
+
+// ---------- skins da voz (mexem no ritmo da fala) ----------
+
+@Composable
+fun VoiceViz(skin: String, level: () -> Float, modifier: Modifier = Modifier) {
+    val levelFn by rememberUpdatedState(level)
+    var phase by remember { mutableFloatStateOf(0f) }
+    var lv by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) withFrameNanos { n ->
+            if (last != 0L) {
+                phase += (n - last) / 1_000_000_000f
+                val tg = levelFn()
+                lv += (tg - lv) * (if (tg > lv) 0.5f else 0.1f)
+            }
+            last = n
+        }
+    }
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val a = (0.12f + 0.88f * lv).coerceIn(0f, 1f)
+        val t = phase
+        when (skin) {
+            "wave" -> for (k in 0..2) {
+                val path = Path()
+                val amp = h * 0.42f * a * (1f - k * 0.25f)
+                for (i in 0..80) {
+                    val x = w * i / 80f
+                    val y = h / 2f + amp * sin(i * 0.28f + t * (4f + k * 1.7f) + k * 1.3f) * sin(i / 80f * 3.1415927f)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, Cyan.copy(alpha = 0.9f - k * 0.28f), style = Stroke(3f - k * 0.6f, cap = StrokeCap.Round))
+            }
+            "pulse" -> for (k in 0..3) {
+                val p = (t * 0.7f + k * 0.25f) % 1f
+                val rx = (h * 0.4f + p * w * 0.45f * (0.4f + 0.6f * a)).coerceAtMost(w / 2f)
+                val ry = h * 0.48f * (1f - p * 0.35f)
+                drawOval(Cyan.copy(alpha = (1f - p) * 0.8f), Offset(w / 2f - rx, h / 2f - ry), Size(rx * 2f, ry * 2f), style = Stroke(2.5f))
+            }
+            else -> {
+                val n = 30; val gap = w / n
+                for (i in 0 until n) {
+                    val s = abs(sin(t * 3.2f + i * 0.55f)) * (0.55f + 0.45f * abs(sin(t * 1.7f + i * 1.9f)))
+                    val bh = h * (0.12f + 0.88f * a * s)
+                    val x = gap * (i + 0.5f)
+                    drawLine(Cyan.copy(alpha = 0.55f + 0.4f * s), Offset(x, h / 2f - bh / 2f), Offset(x, h / 2f + bh / 2f), gap * 0.5f, StrokeCap.Round)
+                }
+            }
+        }
     }
 }
