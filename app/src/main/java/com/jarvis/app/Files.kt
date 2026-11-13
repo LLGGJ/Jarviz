@@ -133,7 +133,7 @@ class FileTools(private val ctx: Context) {
         if (n != 1) return "O trecho aparece $n vezes em ${f.name} (precisa aparecer exatamente 1). Use um trecho maior e único."
         backup(f)
         f.writeText(text.replace(old, a.getString("new")))
-        return "Editei ${f.path} (cópia do original guardada nos backups do Jarvis)."
+        return "Editei ${f.path} (cópia do original guardada nos backups du Jarvis)."
     }
 
     private fun mkdir(a: JSONObject): String {
@@ -180,9 +180,11 @@ class FileTools(private val ctx: Context) {
             var e = zis.nextEntry
             while (e != null) {
                 val out = File(dest, e.name).canonicalFile
-                if (!out.path.startsWith(root)) blocked++
-                else if (e.isDirectory) out.mkdirs()
-                else {
+                if (!out.path.startsWith(root)) {
+                    blocked++
+                } else if (e.isDirectory) {
+                    out.mkdirs()
+                } else {
                     out.parentFile?.mkdirs()
                     out.outputStream().use { o ->
                         val b = ByteArray(8192)
@@ -194,18 +196,12 @@ class FileTools(private val ctx: Context) {
                         }
                     }
                     count++
-                    if (count > 20000) error("Muitos arquivos no zip; parei a extração.")
                     if (names.size < 30) names.add(e.name)
-                    if (e.name.lowercase().substringAfterLast('.', "") in BAD_EXT) flagged.add(e.name)
                 }
+                zis.closeEntry()
                 e = zis.nextEntry
             }
         }
-        val sb = StringBuilder("Extraí $count arquivos (${human(total)}) em ${dest.path}\n")
-        sb.append(names.joinToString("\n"))
-        if (count > names.size) sb.append("\n...")
-        if (flagged.isNotEmpty()) sb.append("\n\nATENÇÃO, itens executáveis no zip: ").append(flagged.take(10).joinToString(", "))
-        if (blocked > 0) sb.append("\n\nATENÇÃO: $blocked entradas tentavam escapar da pasta (zip-slip) e foram bloqueadas. Zip suspeito.")
-        return sb.toString()
+        return "Extraí $count arquivo(s) para ${dest.path}" + (if (blocked > 0) " ($blocked bloqueados por segurança)" else "")
     }
 }
