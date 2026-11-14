@@ -1,0 +1,78 @@
+/* Identidade visual Venix Cloud (tema escuro). Usa as fontes do VS Code. */
+:root {
+  --vx-bg: #020202;
+  --vx-surface: #09090d;
+  --vx-border: #1f1f26;
+  --vx-cyan: #06b6d4;
+  --vx-cyan-light: #22d3ee;
+  --vx-text: #f4f4f5;
+  --vx-muted: #a1a1aa;
+  --vx-ok: #34d399;
+  --vx-warn: #fbbf24;
+  --vx-err: #f87171;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 10px;
+  color: var(--vx-text);
+  background: var(--vx-bg);
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: 12px;
+  line-height: 1.5;
+}
+h1, h2 { margin: 0; font-weight: 600; }
+h1 { font-size: 15px; }
+h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--vx-muted); margin: 14px 0 6px; }
+.muted { color: var(--vx-muted); }
+.card {
+  background: var(--vx-surface);
+  border: 1px solid var(--vx-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  animation: vx-in .18s ease-out;
+}
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; }
+.logo { width: 10px; height: 10px; border-radius: 2px; background: var(--vx-cyan); transform: rotate(45deg); box-shadow: 0 0 10px rgba(6,182,212,.5); }
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px;
+  border: 1px solid var(--vx-border); border-radius: 999px; font-size: 11px; color: var(--vx-muted);
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vx-muted); }
+.pill.ok .dot { background: var(--vx-ok); } .pill.ok { color: var(--vx-ok); }
+.pill.err .dot { background: var(--vx-err); } .pill.err { color: var(--vx-err); }
+.pill.load .dot { background: var(--vx-cyan-light); animation: vx-pulse 1s ease-in-out infinite; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stat { background: var(--vx-surface); border: 1px solid var(--vx-border); border-radius: 8px; padding: 8px 10px; transition: border-color .15s; }
+.stat:hover { border-color: var(--vx-cyan); }
+.stat .n { font-size: 20px; font-weight: 600; color: var(--vx-cyan-light); font-variant-numeric: tabular-nums; }
+.stat .n.err { color: var(--vx-err); font-size: 13px; }
+.stat .l { color: var(--vx-muted); font-size: 11px; }
+.bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--vx-border); margin: 6px 0; }
+.bar span { display: block; height: 100%; transition: width .25s ease; }
+.bar .on { background: var(--vx-ok); } .bar .off { background: var(--vx-err); } .bar .other { background: var(--vx-warn); }
+.warn { border-color: rgba(251,191,36,.4); color: var(--vx-warn); }
+.gap { margin-top: 8px; }
+.warn ul { margin: 4px 0 0; padding-left: 16px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+button {
+  font: inherit; color: var(--vx-text); background: var(--vx-surface); border: 1px solid var(--vx-border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: border-color .15s, background .15s;
+}
+button:hover { border-color: var(--vx-cyan); background: #0d0d14; }
+button:focus-visible { outline: 2px solid var(--vx-cyan-light); outline-offset: 1px; }
+button.primary { background: var(--vx-cyan); color: #00262c; border-color: var(--vx-cyan); font-weight: 600; }
+button.primary:hover { background: var(--vx-cyan-light); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--vx-border); }
+th { width: 32%; color: var(--vx-muted); font-weight: 500; word-break: break-word; }
+td { word-break: break-all; font-family: var(--vscode-editor-font-family, monospace); }
+td .btns { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+td .btns button { padding: 0 6px; font-size: 11px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes vx-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes vx-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

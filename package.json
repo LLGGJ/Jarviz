@@ -1,0 +1,590 @@
+{
+  "name": "venix-cloud",
+  "displayName": "Venix Cloud",
+  "description": "Gerencie aplicações, bancos de dados, servidores de jogos, CDN e snapshots da Venix Cloud direto do VS Code.",
+  "version": "1.0.0",
+  "publisher": "venixcloud",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "venix",
+    "venix cloud",
+    "hosting",
+    "deploy",
+    "cloud",
+    "oauth"
+  ],
+  "galleryBanner": {
+    "color": "#020202",
+    "theme": "dark"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onUri"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "A publicação de arquivos fica desabilitada em workspaces não confiáveis.",
+      "restrictedConfigurations": [
+        "venixCloud.publish.exclude"
+      ]
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "Publicar arquivos exige uma pasta local."
+    }
+  },
+  "contributes": {
+    "authentication": [
+      {
+        "id": "venixcloud",
+        "label": "Venix Cloud"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "venixCloud",
+          "title": "Venix Cloud",
+          "icon": "media/icons/venix.svg"
+        }
+      ]
+    },
+    "views": {
+      "venixCloud": [
+        {
+          "id": "venixCloud.overview",
+          "name": "Visão geral",
+          "type": "webview",
+          "when": "venixCloud.signedIn",
+          "visibility": "visible"
+        },
+        {
+          "id": "venixCloud.explorer",
+          "name": "Recursos"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "venixCloud.explorer",
+        "when": "!venixCloud.signedIn",
+        "contents": "Conecte sua conta Venix Cloud para gerenciar aplicações, bancos de dados, servidores de jogos, CDN e snapshots.\n[Entrar com Venix Cloud](command:venixCloud.signIn)\nO login abre o navegador (OAuth 2.0 com PKCE). Sua senha nunca passa pela extensão.\nSem navegador local (SSH, WSL, Codespaces)?\n[Entrar colando a URL de retorno](command:venixCloud.signInManual)\nOu use um token de API gerado no painel (não é OAuth):\n[Usar token de API](command:venixCloud.signInWithApiToken)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "venixCloud.signIn",
+        "title": "Entrar",
+        "category": "Venix Cloud",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "venixCloud.signInManual",
+        "title": "Entrar (colar URL de retorno)",
+        "category": "Venix Cloud"
+      },
+      {
+        "command": "venixCloud.signInWithApiToken",
+        "title": "Entrar com token de API",
+        "category": "Venix Cloud"
+      },
+      {
+        "command": "venixCloud.signOut",
+        "title": "Sair",
+        "category": "Venix Cloud",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "venixCloud.refresh",
+        "title": "Atualizar",
+        "category": "Venix Cloud",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "venixCloud.showAccount",
+        "title": "Mostrar Conta",
+        "category": "Venix Cloud",
+        "icon": "$(account)"
+      },
+      {
+        "command": "venixCloud.openWebPanel",
+        "title": "Abrir Painel Web",
+        "category": "Venix Cloud",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "venixCloud.checkConnection",
+        "title": "Verificar Conexão",
+        "category": "Venix Cloud",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "venixCloud.openSettings",
+        "title": "Configurações",
+        "category": "Venix Cloud",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "venixCloud.showDetails",
+        "title": "Ver detalhes",
+        "category": "Venix Cloud"
+      },
+      {
+        "command": "venixCloud.copyId",
+        "title": "Copiar ID",
+        "category": "Venix Cloud",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "venixCloud.appStart",
+        "title": "Iniciar aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(play)"
+      },
+      {
+        "command": "venixCloud.appStop",
+        "title": "Parar aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "venixCloud.appRestart",
+        "title": "Reiniciar aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "venixCloud.appDeploy",
+        "title": "Disparar deploy (GitHub)",
+        "category": "Venix Cloud",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "venixCloud.appEditConfig",
+        "title": "Editar configurações da aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "venixCloud.appCreate",
+        "title": "Criar aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(add)"
+      },
+      {
+        "command": "venixCloud.appDelete",
+        "title": "Excluir aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "venixCloud.appLogs",
+        "title": "Ver logs ao vivo",
+        "category": "Venix Cloud",
+        "icon": "$(output)"
+      },
+      {
+        "command": "venixCloud.appOpenUrl",
+        "title": "Abrir aplicação no navegador",
+        "category": "Venix Cloud",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "venixCloud.gameCreate",
+        "title": "Criar servidor de jogo",
+        "category": "Venix Cloud",
+        "icon": "$(add)"
+      },
+      {
+        "command": "venixCloud.gameCommand",
+        "title": "Enviar comando ao console do servidor",
+        "category": "Venix Cloud",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "venixCloud.gameDelete",
+        "title": "Excluir servidor de jogo",
+        "category": "Venix Cloud",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "venixCloud.dbCreate",
+        "title": "Criar banco de dados",
+        "category": "Venix Cloud",
+        "icon": "$(add)"
+      },
+      {
+        "command": "venixCloud.dbCertificates",
+        "title": "Baixar certificados do banco",
+        "category": "Venix Cloud",
+        "icon": "$(key)"
+      },
+      {
+        "command": "venixCloud.dbDelete",
+        "title": "Excluir banco de dados",
+        "category": "Venix Cloud",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "venixCloud.storageUpload",
+        "title": "Enviar arquivo para o CDN",
+        "category": "Venix Cloud",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "venixCloud.storageCopyUrl",
+        "title": "Copiar URL do objeto",
+        "category": "Venix Cloud",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "venixCloud.storageOpenUrl",
+        "title": "Abrir URL do objeto",
+        "category": "Venix Cloud",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "venixCloud.snapshotCreate",
+        "title": "Criar snapshot (backup)",
+        "category": "Venix Cloud",
+        "icon": "$(add)"
+      },
+      {
+        "command": "venixCloud.snapshotDownload",
+        "title": "Baixar snapshot",
+        "category": "Venix Cloud",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "venixCloud.snapshotDelete",
+        "title": "Excluir snapshot",
+        "category": "Venix Cloud",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "venixCloud.linkWorkspace",
+        "title": "Vincular projeto a uma aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(link)"
+      },
+      {
+        "command": "venixCloud.publishWorkspace",
+        "title": "Publicar projeto na aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "venixCloud.uploadFile",
+        "title": "Enviar arquivo para uma aplicação",
+        "category": "Venix Cloud",
+        "icon": "$(file-add)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "venixCloud.showDetails",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.copyId",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.storageCopyUrl",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.storageOpenUrl",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.snapshotDownload",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.snapshotDelete",
+          "when": "false"
+        },
+        {
+          "command": "venixCloud.signOut",
+          "when": "venixCloud.signedIn"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "venixCloud.refresh",
+          "when": "view == venixCloud.explorer && venixCloud.signedIn",
+          "group": "navigation@1"
+        },
+        {
+          "command": "venixCloud.publishWorkspace",
+          "when": "view == venixCloud.explorer && venixCloud.signedIn",
+          "group": "navigation@2"
+        },
+        {
+          "command": "venixCloud.checkConnection",
+          "when": "view == venixCloud.explorer && venixCloud.signedIn",
+          "group": "overflow@1"
+        },
+        {
+          "command": "venixCloud.openWebPanel",
+          "when": "view == venixCloud.explorer",
+          "group": "overflow@2"
+        },
+        {
+          "command": "venixCloud.signOut",
+          "when": "view == venixCloud.explorer && venixCloud.signedIn",
+          "group": "overflow@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "venixCloud.appCreate",
+          "when": "viewItem == venix.category.apps",
+          "group": "inline"
+        },
+        {
+          "command": "venixCloud.gameCreate",
+          "when": "viewItem == venix.category.games",
+          "group": "inline"
+        },
+        {
+          "command": "venixCloud.dbCreate",
+          "when": "viewItem == venix.category.databases",
+          "group": "inline"
+        },
+        {
+          "command": "venixCloud.storageUpload",
+          "when": "viewItem == venix.category.storage",
+          "group": "inline"
+        },
+        {
+          "command": "venixCloud.snapshotCreate",
+          "when": "viewItem == venix.category.snapshots",
+          "group": "inline"
+        },
+        {
+          "command": "venixCloud.appStart",
+          "when": "viewItem =~ /^venix\\.app\\.(offline|unknown)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "venixCloud.appStop",
+          "when": "viewItem =~ /^venix\\.app\\.(online|unknown)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "venixCloud.appRestart",
+          "when": "viewItem =~ /^venix\\.app\\.(online|unknown)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "venixCloud.appLogs",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "venixCloud.appOpenUrl",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "1_run@2"
+        },
+        {
+          "command": "venixCloud.publishWorkspace",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "2_deploy@1"
+        },
+        {
+          "command": "venixCloud.appDeploy",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "2_deploy@2"
+        },
+        {
+          "command": "venixCloud.linkWorkspace",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "2_deploy@3"
+        },
+        {
+          "command": "venixCloud.appEditConfig",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "3_manage@1"
+        },
+        {
+          "command": "venixCloud.snapshotCreate",
+          "when": "viewItem =~ /^venix\\.(app|database)/",
+          "group": "3_manage@2"
+        },
+        {
+          "command": "venixCloud.copyId",
+          "when": "viewItem =~ /^venix\\.(app|game|database|snapshot)/",
+          "group": "4_copy@1"
+        },
+        {
+          "command": "venixCloud.appDelete",
+          "when": "viewItem =~ /^venix\\.app/",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "venixCloud.gameCommand",
+          "when": "viewItem == venix.game",
+          "group": "1_run@1"
+        },
+        {
+          "command": "venixCloud.gameDelete",
+          "when": "viewItem == venix.game",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "venixCloud.dbCertificates",
+          "when": "viewItem == venix.database",
+          "group": "1_run@1"
+        },
+        {
+          "command": "venixCloud.dbDelete",
+          "when": "viewItem == venix.database",
+          "group": "9_danger@1"
+        },
+        {
+          "command": "venixCloud.storageCopyUrl",
+          "when": "viewItem == venix.object.url",
+          "group": "1_run@1"
+        },
+        {
+          "command": "venixCloud.storageOpenUrl",
+          "when": "viewItem == venix.object.url",
+          "group": "1_run@2"
+        },
+        {
+          "command": "venixCloud.snapshotDownload",
+          "when": "viewItem == venix.snapshot",
+          "group": "1_run@1"
+        },
+        {
+          "command": "venixCloud.snapshotDelete",
+          "when": "viewItem == venix.snapshot",
+          "group": "9_danger@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "venixCloud.publishWorkspace",
+          "when": "explorerResourceIsFolder && venixCloud.signedIn",
+          "group": "venixCloud@1"
+        },
+        {
+          "command": "venixCloud.uploadFile",
+          "when": "!explorerResourceIsFolder && resourceScheme == file && venixCloud.signedIn",
+          "group": "venixCloud@2"
+        },
+        {
+          "command": "venixCloud.storageUpload",
+          "when": "!explorerResourceIsFolder && resourceScheme == file && venixCloud.signedIn",
+          "group": "venixCloud@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Venix Cloud",
+      "properties": {
+        "venixCloud.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.venixcloud.com/v1",
+          "scope": "machine",
+          "markdownDescription": "URL-base da API. Só são aceitas URLs **HTTPS** em `venixcloud.com` ou subdomínios; qualquer outro destino é rejeitado para impedir o envio de credenciais a terceiros."
+        },
+        "venixCloud.autoRefresh": {
+          "type": "boolean",
+          "default": false,
+          "description": "Atualiza os recursos automaticamente (somente com a janela em foco). Cuidado: a API limita 60 requisições por minuto."
+        },
+        "venixCloud.refreshInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 30,
+          "maximum": 3600,
+          "description": "Intervalo da atualização automática, em segundos (30 a 3600)."
+        },
+        "venixCloud.confirmDestructiveActions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exige confirmação explícita antes de excluir recursos (aplicações, servidores, bancos, snapshots). Recomendado manter ativo."
+        },
+        "venixCloud.oauth.redirectMode": {
+          "type": "string",
+          "enum": [
+            "loopback",
+            "vscode"
+          ],
+          "default": "loopback",
+          "enumDescriptions": [
+            "Servidor local em 127.0.0.1 (mesmo método da CLI oficial).",
+            "URI handler vscode://… (exige que esse redirect esteja registrado na Venix Cloud)."
+          ],
+          "description": "Como a extensão recebe o retorno do login OAuth."
+        },
+        "venixCloud.oauth.callbackPort": {
+          "type": "number",
+          "default": 53682,
+          "minimum": 1024,
+          "maximum": 65535,
+          "scope": "machine",
+          "description": "Porta do callback em 127.0.0.1. Deve corresponder ao redirect URI registrado para o aplicativo OAuth."
+        },
+        "venixCloud.publish.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            "*.log",
+            ".DS_Store",
+            ".vscode",
+            "dist-cache"
+          ],
+          "scope": "resource",
+          "description": "Padrões (estilo .gitignore) excluídos da publicação, além de `.venixignore`. Arquivos secretos (.env, chaves, credenciais), `.git` e `.venix.json` são SEMPRE bloqueados."
+        },
+        "venixCloud.publish.restartAfterUpload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reinicia a aplicação após publicar os arquivos."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "lint": "eslint src test",
+    "format": "prettier --write \"{src,test}/**/*.ts\"",
+    "format:check": "prettier --check \"{src,test}/**/*.ts\"",
+    "test": "node --import tsx --import ./test/setup/register.ts --test \"test/**/*.test.ts\"",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}
