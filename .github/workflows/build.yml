@@ -17,7 +17,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.7
-      - run: gradle assembleDebug --no-daemon
+      - name: Compilar
+        shell: bash
+        run: gradle assembleDebug --no-daemon --console=plain 2>&1 | tee build.log
+      - name: Mostrar o erro como anotação
+        if: failure()
+        shell: bash
+        run: |
+          grep -E '^e: |What went wrong|Execution failed|OutOfMemory|Java heap|error:' build.log | head -15 | sed 's/%/%25/g; s/^/::error::/' || true
       - name: Publicar o APK direto (Release)
         env:
           GH_TOKEN: ${{ github.token }}
