@@ -20,13 +20,22 @@ data class Config(
     val provider: String = "flat",
     val geminiKey: String = "",
     val geminiModels: String = "",
+    val groqKey: String = "",
+    val deepseekKey: String = "",
+    val openaiKey: String = "",
     val fast: Boolean = true,
     val clapSens: String = "mid",
     val voiceName: String = "",
     val voiceRate: String = "1.0",
     val voiceViz: String = "bars",
 ) {
-    fun key() = if (provider == "gemini") geminiKey else apiKey
+    fun key() = when (provider) {
+        "gemini" -> geminiKey
+        "groq" -> groqKey
+        "deepseek" -> deepseekKey
+        "openai" -> openaiKey
+        else -> apiKey
+    }
 }
 
 class Prefs(ctx: Context) {
@@ -50,6 +59,9 @@ class Prefs(ctx: Context) {
         provider = sp.getString("provider", d.provider)!!,
         geminiKey = sp.getString("geminiKey", d.geminiKey)!!,
         geminiModels = sp.getString("geminiModels", d.geminiModels)!!,
+        groqKey = sp.getString("groqKey", d.groqKey)!!,
+        deepseekKey = sp.getString("deepseekKey", d.deepseekKey)!!,
+        openaiKey = sp.getString("openaiKey", d.openaiKey)!!,
         fast = sp.getBoolean("fast", d.fast),
         clapSens = sp.getString("clapSens", d.clapSens)!!,
         voiceName = sp.getString("voiceName", d.voiceName)!!,
@@ -67,6 +79,7 @@ class Prefs(ctx: Context) {
         .putString("repo", c.repo).putString("theme2", c.theme)
         .putString("firecrawl", c.firecrawl).putBoolean("autoScan", c.autoScan)
         .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels)
+        .putString("groqKey", c.groqKey).putString("deepseekKey", c.deepseekKey).putString("openaiKey", c.openaiKey)
         .putBoolean("fast", c.fast).putString("clapSens", c.clapSens)
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz).apply()
 }
