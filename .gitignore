@@ -1,8 +1,5 @@
-node_modules/
-out/
-*.vsix
-.vscode-test/
-*.log
-.env
-.env.*
-.venix.json
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
