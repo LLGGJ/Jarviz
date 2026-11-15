@@ -1,6 +1,5 @@
 package com.jarvis.app
 
-import android.Manifest
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.ClipData
@@ -152,7 +151,8 @@ object MiniCurl {
             }
             i++
         }
-        var u = url ?: return "curl: informe uma URL."
+        // CORREÇÃO DO BUILD: "return" não é permitido em função com corpo de expressão; error() cai no catch abaixo.
+        var u: String = url ?: error("informe uma URL.")
         if (!u.startsWith("http")) u = "http://$u"
         val m = (method ?: if (head) "HEAD" else if (data != null) "POST" else "GET").uppercase()
         val ct = headers.firstOrNull { it.first.equals("Content-Type", true) }?.second ?: "application/x-www-form-urlencoded"

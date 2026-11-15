@@ -1,0 +1,20 @@
+JARVIZ - PACOTE DE CORREÇÃO + ROSTO DE ROBÔ
+
+COMO USAR (copie por cima do repositório, mantendo as pastas):
+  .github/workflows/build.yml
+  gradle.properties
+  app/src/main/java/com/jarvis/app/Terminal.kt   <- corrige o erro do build
+  app/src/main/java/com/jarvis/app/Face.kt       <- arquivo NOVO (rosto do robô)
+
+1) ERRO DO BUILD (já corrigido no Terminal.kt)
+   Terminal.kt:155 "Returns are not allowed for functions with expression body".
+   Era um "return" dentro do MiniCurl.run; troquei por error(), que cai no catch.
+
+2) ATIVAR O ROSTO (1 troca em 1 lugar, no arquivo Ui.kt)
+   Dentro de HologramCard, a chamada:
+       NucleoHologram(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
+   vira:
+       RobotFace(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
+   Troque SÓ essa chamada. Deixe a função NucleoHologram lá embaixo como está.
+
+Toque no rosto = falar. Segurar = troca o formato dos olhos (barras, onda, redondo).
