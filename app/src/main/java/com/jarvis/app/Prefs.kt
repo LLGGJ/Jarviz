@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import android.content.Context
+import org.json.JSONObject
 
 data class Config(
     val apiKey: String = "",
@@ -25,8 +26,70 @@ data class Config(
     val voiceName: String = "",
     val voiceRate: String = "1.0",
     val voiceViz: String = "bars",
+    /** Chaves dos outros provedores, em JSON {"openai":"sk-...","groq":"..."}. FlatAI e Gemini continuam em apiKey/geminiKey. */
+    val keys: String = "",
+    /** Listas de modelos buscadas dos outros provedores, em JSON {"openai":"gpt-4o,gpt-4.1"}. */
+    val modelLists: String = "",
+    /** Se um modelo/provedor não responder, tenta o próximo configurado. */
+    val fallback: Boolean = true,
 ) {
-    fun key() = if (provider == "gemini") geminiKey else apiKey
+    private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
+
+    fun keyOf(p: String): String {
+        val k = jm(keys).optString(p)
+        if (k.isNotBlank()) return k
+        return when (p) { "gemini" -> geminiKey; "flat" -> apiKey; else -> "" }
+    }
+
+    fun withKey(p: String, v: String): Config {
+        val c = copy(keys = jm(keys).put(p, v).toString())
+        return when (p) { "gemini" -> c.copy(geminiKey = v); "flat" -> c.copy(apiKey = v); else -> c }
+    }
+
+    fun key(): String = keyOf(provider)
+
+    /** Modelos de um provedor: a lista buscada da chave do usuário, ou a lista padrão. */
+    fun modelsOf(p: String): List<String> {
+        val raw = when (p) { "flat" -> models; "gemini" -> geminiModels; else -> jm(modelLists).optString(p) }
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { defaultModelsFor(p) }
+    }
+
+    fun withModels(p: String, ids: List<String>): Config {
+        val csv = ids.joinToString(",")
+        return when (p) {
+            "flat" -> copy(models = csv)
+            "gemini" -> copy(geminiModels = csv)
+            else -> copy(modelLists = jm(modelLists).put(p, csv).toString())
+        }
+    }
+
+    /** Troca de provedor: escolhe o primeiro modelo dele e ajusta protocolo e URL. */
+    fun switchedTo(p: String): Config {
+        val m = modelsOf(p).first()
+        val a = apiFor(m, p)
+        return copy(provider = p, model = m, preset = m, api = a, baseUrl = baseFor(a, p))
+    }
+
+    /** Provedores que têm chave cadastrada. */
+    fun configured(): List<String> = PROVIDER_DEFS.map { it.id }.filter { keyOf(it).isNotBlank() }
+
+    /**
+     * Ordem de tentativa: o modelo escolhido, mais 2 outros modelos do mesmo provedor,
+     * depois o primeiro modelo de cada outro provedor que tenha chave.
+     */
+    fun fallbackChain(): List<Config> {
+        val out = mutableListOf(this)
+        if (!fallback) return out
+        fun mk(p: String, m: String): Config {
+            val a = apiFor(m, p)
+            return copy(provider = p, model = m, preset = m, api = a, baseUrl = baseFor(a, p))
+        }
+        modelsOf(provider).filter { it != model }.take(2).forEach { out.add(mk(provider, it)) }
+        PROVIDER_DEFS.forEach { d ->
+            if (d.id != provider && keyOf(d.id).isNotBlank()) modelsOf(d.id).firstOrNull()?.let { out.add(mk(d.id, it)) }
+        }
+        return out.take(8)
+    }
 }
 
 class Prefs(ctx: Context) {
@@ -55,6 +118,9 @@ class Prefs(ctx: Context) {
         voiceName = sp.getString("voiceName", d.voiceName)!!,
         voiceRate = sp.getString("voiceRate", d.voiceRate)!!,
         voiceViz = sp.getString("voiceViz", d.voiceViz)!!,
+        keys = sp.getString("keys", d.keys)!!,
+        modelLists = sp.getString("modelLists", d.modelLists)!!,
+        fallback = sp.getBoolean("fallback", d.fallback),
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -68,5 +134,6 @@ class Prefs(ctx: Context) {
         .putString("firecrawl", c.firecrawl).putBoolean("autoScan", c.autoScan)
         .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels)
         .putBoolean("fast", c.fast).putString("clapSens", c.clapSens)
-        .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz).apply()
+        .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
+        .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback).apply()
 }

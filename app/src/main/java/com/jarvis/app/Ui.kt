@@ -90,13 +90,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.exp
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
-import kotlin.random.Random
 
 private val Bg = Color(0xFF121826)
 private val Panel = Color(0xFF1B2438)
@@ -283,7 +276,7 @@ fun NeonSelect(label: String, options: List<String>, selected: String, onSelect:
             NeonIcon(Ico.CHEVRON, Modifier.size(20.dp).rotate(rot), Cyan)
         }
         AnimatedVisibility(open, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(Modifier.padding(top = 6.dp).clip(R12).background(Field).border(1.dp, Cyan.copy(alpha = 0.3f), R12)) {
+            Column(Modifier.padding(top = 6.dp).heightIn(max = 320.dp).verticalScroll(rememberScrollState()).clip(R12).background(Field).border(1.dp, Cyan.copy(alpha = 0.3f), R12)) {
                 options.forEach { o ->
                     val sel = o == selected
                     val bg by animateColorAsState(if (sel) Cyan.copy(alpha = 0.18f) else Color.Transparent, label = "o")
@@ -353,7 +346,6 @@ fun PermissionDialog(p: Pending, onDecide: (Boolean) -> Unit) {
 
 private val R20 = RoundedCornerShape(20.dp)
 private val Orange = Color(0xFFFFA63D)
-private val OrangeHot = Color(0xFFFFD58A)
 private val Violet = Color(0xFFA394FF)
 private val Muted = Color(0xFF8A97B3)
 private val Glass = Color.White.copy(alpha = 0.05f)
@@ -447,18 +439,18 @@ private fun TopBar(vm: JarvisViewModel, openMenu: () -> Unit) {
 @Composable
 private fun HologramCard(vm: JarvisViewModel, shown: State, elapsed: Long, modifier: Modifier) {
     val sub = when (shown) {
-        State.IDLE -> if (vm.cfg.clap) "Bata 2 palmas ou toque no núcleo" else "Toque no núcleo para falar"
+        State.IDLE -> if (vm.cfg.clap) "Bata 2 palmas ou toque no rostinho" else "Toque no rostinho para falar"
         State.LISTENING -> vm.partial.ifBlank { "Aguardando sua voz" }
         State.THINKING -> "${vm.stage.ifBlank { "Processando" }} · ${elapsed}s"
         State.SPEAKING -> "Respondendo por voz"
     }
     Box(modifier.clip(R20).background(Brush.radialGradient(listOf(Color(0xFF2A3552), Color(0xFF1B2335)), radius = 900f)).border(1.dp, GlassLine, R20)) {
-        NucleoHologram(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
+        RobotFace(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
             onTap = { vm.listenNow() },
             onLong = { vm.updateCfg(vm.cfg.copy(voiceViz = when (vm.cfg.voiceViz) { "bars" -> "wave"; "wave" -> "pulse"; else -> "bars" })) })
         Row(Modifier.align(Alignment.TopStart).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(5.dp).clip(CircleShape).background(Muted))
-            Text("VISUALIZAÇÃO ATIVA", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+            Text("ROBÔ ATIVO", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
         }
         if (vm.state == State.THINKING) Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) { NeonButton("Cancelar", pad = 8.dp, icon = Ico.CLOSE) { vm.cancel() } }
         else Text("JARVIS / CORE", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp))
@@ -596,7 +588,7 @@ private fun ModulesPanel(vm: JarvisViewModel, onPrefill: (String) -> Unit, onPic
         }
         Column(Modifier.fillMaxWidth().clip(R12).background(Glass).padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("MODELO", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
-            Text(vm.cfg.model, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${providerLabel(vm.cfg.provider)} · ${vm.cfg.model}", color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -761,7 +753,8 @@ private fun Label(t: String) { Text(t, color = Muted, fontSize = 11.sp, letterSp
 fun SettingsPanel(vm: JarvisViewModel) {
     val c = vm.cfg
     val ctx = LocalContext.current
-    val options = vm.availableModels() + CUSTOM
+    val pdef = providerDef(c.provider)
+    val options = c.modelsOf(c.provider) + CUSTOM
     val efforts = listOf("low", "medium", "high")
     val rates = listOf("0.9", "1.0", "1.1", "1.25")
     val sens = listOf("low", "mid", "high")
@@ -773,15 +766,14 @@ fun SettingsPanel(vm: JarvisViewModel) {
             Text("Configurações", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Section("Inteligência artificial", startOpen = true) {
-            NeonSelect("PROVEDOR", PROVIDERS.map { it.second }, PROVIDERS.first { it.first == c.provider }.second) { n ->
-                vm.setProvider(PROVIDERS.first { it.second == n }.first)
+            var msg by remember { mutableStateOf("") }
+            NeonSelect("PROVEDOR", PROVIDERS.map { it.second }, providerLabel(c.provider)) { n ->
+                vm.updateCfg(c.switchedTo(PROVIDERS.first { it.second == n }.first)); msg = ""
             }
-            if (c.provider == "gemini") {
-                NeonField(c.geminiKey, { vm.updateCfg(c.copy(geminiKey = it)) }, "API KEY (GOOGLE AI STUDIO)", placeholder = "AIza...", secret = true)
-                NeonButton("Criar chave no AI Studio", Modifier.fillMaxWidth(), icon = Ico.OPEN) {
-                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
-            } else NeonField(c.apiKey, { vm.updateCfg(c.copy(apiKey = it)) }, "API KEY (FLATAI.PRO)", secret = true)
+            NeonField(c.keyOf(c.provider), { vm.updateCfg(c.withKey(c.provider, it.trim())) }, "API KEY (${pdef.label.uppercase()})", placeholder = "cole a chave aqui", secret = true)
+            NeonButton("Criar ou ver minha chave", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.OPEN) {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(pdef.keyUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
             NeonSelect("MODELO", options, c.preset) { n ->
                 vm.updateCfg(
                     if (n == CUSTOM) c.copy(preset = n)
@@ -789,10 +781,10 @@ fun SettingsPanel(vm: JarvisViewModel) {
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NeonButton("Atualizar", Modifier.weight(1f), pad = 12.dp, icon = Ico.REFRESH) { vm.refreshModels() }
+                NeonButton("Atualizar", Modifier.weight(1f), pad = 12.dp, icon = Ico.REFRESH) { vm.refreshProviderModels { msg = it } }
                 NeonButton("Testar", Modifier.weight(1f), pad = 12.dp, icon = Ico.CHECK) { vm.testConnection() }
             }
-            if (vm.modelsMsg.isNotBlank()) Text(vm.modelsMsg, color = Muted, fontSize = 12.sp)
+            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.sp)
             AnimatedVisibility(c.preset == CUSTOM, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     NeonField(c.model, { vm.updateCfg(c.copy(model = it)) }, "ID DO MODELO")
@@ -806,6 +798,27 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonSegmented(listOf("Baixo", "Médio", "Alto"), efforts.indexOf(c.effort).coerceAtLeast(0)) { vm.updateCfg(c.copy(effort = efforts[it])) }
             NeonToggle("Modo rápido", c.fast) { vm.updateCfg(c.copy(fast = it)) }
         }
+        Section("Fallback entre provedores", startOpen = true) {
+            val ready = c.configured()
+            NeonToggle("Trocar de modelo/provedor sozinho", c.fallback) { vm.updateCfg(c.copy(fallback = it)) }
+            Text(
+                "Se o modelo escolhido não responde, o Jarvis tenta outros modelos do mesmo provedor e depois os outros provedores que tenham chave cadastrada.",
+                color = Muted, fontSize = 12.sp
+            )
+            Label("PROVEDORES COM CHAVE")
+            Text(
+                if (ready.isEmpty()) "Nenhum ainda. Escolha um provedor acima e cole a chave."
+                else ready.joinToString(", ") { providerLabel(it).substringBefore(" (") },
+                color = Color.White, fontSize = 13.sp
+            )
+            Label("ORDEM DE TENTATIVA")
+            Text(
+                if (!c.fallback) "Desligado: se o modelo falhar, o Jarvis só mostra o erro."
+                else if (ready.size < 2) "Cadastre a chave de mais um provedor para ele ter para onde ir quando um falhar."
+                else c.fallbackChain().joinToString(" → ") { providerLabel(it.provider).substringBefore(" (") + " · " + it.model.substringAfterLast('/') },
+                color = Muted, fontSize = 12.sp
+            )
+        }
         Section("Voz e palmas") {
             NeonToggle("Responder por voz", c.speak) { vm.updateCfg(c.copy(speak = it)) }
             NeonSelect("VOZ", listOf(auto) + vopts.map { it.second }, vopts.firstOrNull { it.first == c.voiceName }?.second ?: auto) { n ->
@@ -817,7 +830,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonToggle("Ativar com 2 palmas", c.clap) { vm.updateCfg(c.copy(clap = it)) }
             Label("SENSIBILIDADE DAS PALMAS")
             NeonSegmented(listOf("Baixa", "Média", "Alta"), sens.indexOf(c.clapSens).coerceAtLeast(1)) { vm.updateCfg(c.copy(clapSens = sens[it])) }
-            Text("Dica: segure o núcleo para trocar o visual da voz.", color = Muted, fontSize = 12.sp)
+            Text("Dica: segure o rostinho para trocar o formato dos olhos (barras, onda, redondo).", color = Muted, fontSize = 12.sp)
         }
         Section("GitHub e build") {
             NeonField(c.ghToken, { vm.updateCfg(c.copy(ghToken = it)) }, "TOKEN DO GITHUB (ghp_...)", placeholder = "ghp_xxxxxxxxxxxx", secret = true)
@@ -842,151 +855,8 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonButton("Verificar agora", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.SHIELD) { vm.runScanNow() }
             NeonButton("Permitir acesso aos arquivos", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.FOLDER) { vm.requestFiles() }
         }
-        NeonButton(if (c.provider == "gemini") "Documentação do Gemini" else "Documentação flatai.pro", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.BOOK) {
-            val doc = if (c.provider == "gemini") "https://ai.google.dev/gemini-api/docs/models" else "https://flatai.pro"
-            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(doc)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        NeonButton("Abrir site de ${providerLabel(c.provider).substringBefore(" (")}", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.BOOK) {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(pdef.keyUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
-    }
-}
-
-// ---------- núcleo: nuvem de partículas + emblema; ao falar, barras laranja no ritmo da voz ----------
-
-private const val NU_N = 4200
-
-@Composable
-fun NucleoHologram(
-    state: State, level: () -> Float, skin: String, modifier: Modifier = Modifier,
-    bottomInset: Dp = 0.dp, onTap: () -> Unit = {}, onLong: () -> Unit = {}
-) {
-    val speed by animateFloatAsState(when (state) { State.THINKING -> 2.6f; State.LISTENING -> 1.4f; State.SPEAKING -> 1.2f; else -> 1f }, tween(700), label = "ns")
-    val think by animateFloatAsState(if (state == State.THINKING) 1f else 0f, tween(500), label = "nt")
-    val listen by animateFloatAsState(if (state == State.LISTENING) 1f else 0f, tween(400), label = "nl")
-    val speak by animateFloatAsState(if (state == State.SPEAKING) 1f else 0f, tween(400), label = "nsp")
-    val speedNow by rememberUpdatedState(speed)
-    val levelFn by rememberUpdatedState(level)
-    var phase by remember { mutableFloatStateOf(0f) }
-    var lv by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        var last = 0L
-        while (true) withFrameNanos { n ->
-            if (last != 0L) {
-                phase += (n - last) / 1_000_000_000f * speedNow
-                val tg = levelFn()
-                lv += (tg - lv) * (if (tg > lv) 0.45f else 0.08f)
-            }
-            last = n
-        }
-    }
-    val data = remember {
-        val r = Random(21)
-        FloatArray(NU_N * 5).also { d ->
-            for (i in 0 until NU_N) {
-                val y = 1f - 2f * (i + 0.5f) / NU_N
-                val rad = sqrt(1f - y * y)
-                val th = i * 2.3999631f
-                d[i * 5] = cos(th) * rad; d[i * 5 + 1] = y; d[i * 5 + 2] = sin(th) * rad
-                d[i * 5 + 3] = if (r.nextFloat() < 0.72f) 0.86f + 0.26f * ((r.nextFloat() + r.nextFloat() + r.nextFloat()) / 3f) else 0.25f + 1.35f * r.nextFloat().let { it * it }
-                d[i * 5 + 4] = r.nextFloat()
-            }
-        }
-    }
-    val back = remember { ArrayList<Offset>(NU_N) }
-    val mid = remember { ArrayList<Offset>(NU_N) }
-    val front = remember { ArrayList<Offset>(NU_N) }
-
-    Box(modifier.pointerInput(Unit) { detectTapGestures(onTap = { onTap() }, onLongPress = { onLong() }) }) {
-        Canvas(Modifier.fillMaxSize()) {
-            val t = phase
-            val L = lv.coerceIn(0f, 1f)
-            val w = size.width; val h = size.height
-            val dp = 1.dp.toPx()
-            val ah = h - bottomInset.toPx()
-            val cx = w / 2f; val cy = ah / 2f
-            val R = min(w, ah) * 0.38f
-            val pulse = 0.5f + 0.5f * sin(t * (2.2f + think * 3f))
-            val yaw = t * 0.12f; val pit = 0.28f
-            val cyw = cos(yaw); val syw = sin(yaw); val cp = cos(pit); val sp = sin(pit)
-            back.clear(); mid.clear(); front.clear()
-            for (i in 0 until NU_N) {
-                val ux = data[i * 5]; val uy = data[i * 5 + 1]; val uz = data[i * 5 + 2]
-                val rr = data[i * 5 + 3]; val sd = data[i * 5 + 4]
-                var rad = rr * (1f + 0.02f * sin(t * 1.3f + sd * 6.283f))
-                rad *= 1f + speak * (0.05f + 0.20f * L) * sin(t * 6f + sd * 12f)
-                rad *= 1f - listen * 0.05f * pulse
-                val tw = think * 1.6f * uy * sin(t * 0.8f)
-                val c2 = cos(tw); val s2 = sin(tw)
-                val x0 = ux * rad; val y0 = uy * rad; val z0 = uz * rad
-                val x1 = x0 * c2 + z0 * s2; val z1 = -x0 * s2 + z0 * c2
-                val x2 = x1 * cyw + z1 * syw; val z2 = -x1 * syw + z1 * cyw
-                val y3 = y0 * cp - z2 * sp; val z3 = y0 * sp + z2 * cp
-                val f = 1f / (1f - z3 * 0.18f)
-                val p = Offset(cx + x2 * R * f, cy - y3 * R * f)
-                if (z3 < -0.3f) back.add(p) else if (z3 < 0.3f) mid.add(p) else front.add(p)
-            }
-            // brilho do centro (muda de cor com o estado) e luz no chão
-            val gr = R * 0.65f
-            val idle = 1f - maxOf(listen, speak, think)
-            drawCircle(Brush.radialGradient(listOf(Color(0xFFCFE0FF).copy(alpha = 0.14f * idle), Color.Transparent), Offset(cx, cy), gr), gr, Offset(cx, cy))
-            drawCircle(Brush.radialGradient(listOf(Cyan.copy(alpha = (0.30f + 0.30f * L) * listen), Color.Transparent), Offset(cx, cy), gr), gr, Offset(cx, cy))
-            drawCircle(Brush.radialGradient(listOf(Violet.copy(alpha = 0.28f * think), Color.Transparent), Offset(cx, cy), gr), gr, Offset(cx, cy))
-            drawCircle(Brush.radialGradient(listOf(Orange.copy(alpha = (0.22f + 0.40f * L) * speak), Color.Transparent), Offset(cx, cy), gr * 1.15f), gr * 1.15f, Offset(cx, cy))
-            val fy = cy + R * 1.25f
-            drawOval(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), Offset(cx, fy), R * 1.2f),
-                Offset(cx - R * 1.2f, fy - R * 0.12f), Size(R * 2.4f, R * 0.24f))
-            // partículas
-            drawCircle(Color.White.copy(alpha = 0.05f), R * 1.12f, Offset(cx, cy), style = Stroke(1f * dp))
-            drawPoints(back, PointMode.Points, Color(0x55B4C3E0), 0.8f * dp, StrokeCap.Round)
-            drawPoints(mid, PointMode.Points, Color(0x99E4ECFB), 1.0f * dp, StrokeCap.Round)
-            drawPoints(front, PointMode.Points, Color(0xE6FFFFFF), 1.25f * dp, StrokeCap.Round)
-            // anel do emblema + ondas ao escutar
-            val er = 41f * dp
-            drawCircle(Color.White.copy(alpha = 0.35f * (1f - speak)), er, Offset(cx, cy), style = Stroke(1.5f * dp))
-            drawCircle(Cyan.copy(alpha = 0.9f * listen), er, Offset(cx, cy), style = Stroke(2f * dp))
-            if (listen > 0.01f) {
-                val rp = (t * 0.7f) % 1f
-                drawCircle(Cyan.copy(alpha = (1f - rp) * 0.5f * listen), er + rp * R * 0.55f, Offset(cx, cy), style = Stroke(2f * dp))
-            }
-            if (think > 0.01f) for (k in 0..2) {
-                val r = (52f + k * 9f) * dp
-                drawArc(Violet.copy(alpha = 0.9f * think), (t * 180f * (1f + k * 0.4f) + k * 120f) % 360f, 55f, false,
-                    Offset(cx - r, cy - r), Size(r * 2f, r * 2f), style = Stroke(2.5f * dp, cap = StrokeCap.Round))
-            }
-            // voz: barras laranja (ou onda / pulso) no ritmo da fala
-            if (speak > 0.01f) {
-                val a = 0.12f + 0.88f * L
-                val bw = R * 1.5f
-                when (skin) {
-                    "wave" -> for (k in 0..2) {
-                        val path = Path()
-                        val amp = R * 0.42f * a * (1f - k * 0.25f)
-                        for (i in 0..80) {
-                            val x = cx - bw / 2f + bw * i / 80f
-                            val y = cy + amp * sin(i * 0.28f + t * (4f + k * 1.7f) + k * 1.3f) * sin(i / 80f * 3.1415927f)
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                        }
-                        drawPath(path, lerp(Orange, OrangeHot, k * 0.35f).copy(alpha = (0.95f - k * 0.25f) * speak), style = Stroke((3.5f - k * 0.7f) * dp, cap = StrokeCap.Round))
-                    }
-                    "pulse" -> for (k in 0..3) {
-                        val p = (t * 0.7f + k * 0.25f) % 1f
-                        val r = R * (0.12f + p * 0.55f * (0.45f + 0.55f * a))
-                        drawCircle(Orange.copy(alpha = (1f - p) * 0.9f * speak), r, Offset(cx, cy), style = Stroke(2.5f * dp))
-                    }
-                    else -> {
-                        val n = 29; val gap = bw / n; val maxH = R * 0.70f
-                        for (i in 0 until n) {
-                            val d = (i - (n - 1) / 2f) / (n * 0.26f)
-                            val env = exp(-d * d)
-                            val s = abs(sin(t * 3.4f + i * 0.62f)) * (0.5f + 0.5f * abs(sin(t * 1.9f + i * 1.7f)))
-                            val bh = maxH * env * (0.10f + 0.90f * a * s) + 3f * dp
-                            val x = cx - bw / 2f + gap * (i + 0.5f)
-                            drawLine(Orange.copy(alpha = 0.18f * speak), Offset(x, cy - bh / 2f - 4f * dp), Offset(x, cy + bh / 2f + 4f * dp), gap * 1.1f, StrokeCap.Round)
-                            drawLine(lerp(Orange, OrangeHot, env).copy(alpha = speak), Offset(x, cy - bh / 2f), Offset(x, cy + bh / 2f), gap * 0.42f, StrokeCap.Round)
-                        }
-                    }
-                }
-            }
-        }
-        Image(painterResource(R.drawable.logo), null,
-            Modifier.align(Alignment.Center).offset(y = -(bottomInset / 2)).size(72.dp).clip(CircleShape).graphicsLayer { alpha = 1f - speak })
     }
 }

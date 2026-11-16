@@ -22,9 +22,10 @@ import java.util.concurrent.TimeUnit
 data class Call(val id: String, val name: String, val args: JSONObject)
 data class Reply(val text: String, val calls: List<Call>, val raw: Any)
 
-private const val HEADER_MS = 45_000L
+/** Quanto esperar o 1º byte do servidor. Com fallback ligado espera menos, para passar logo ao próximo provedor. */
+@Volatile private var headerMs = 45_000L
 
-/** Linha do tempo de uma chamada + vigia: se o servidor não responde em 45s, cancela para tentar de novo. */
+/** Linha do tempo de uma chamada + vigia: se o servidor não responde a tempo, cancela para tentar de novo / trocar de provedor. */
 class Trace : EventListener() {
     private var t0 = 0L
     private val sb = StringBuilder()
@@ -36,8 +37,9 @@ class Trace : EventListener() {
     fun text() = sb.toString().trim()
     override fun callStart(call: okhttp3.Call) {
         t0 = SystemClock.elapsedRealtime()
+        val wait = headerMs
         wd = Thread {
-            try { Thread.sleep(HEADER_MS) } catch (e: InterruptedException) { return@Thread }
+            try { Thread.sleep(wait) } catch (e: InterruptedException) { return@Thread }
             if (!gotHeaders && !ended) { watchdogFired = true; call.cancel() }
         }.also { it.isDaemon = true; it.start() }
     }
@@ -52,12 +54,19 @@ class Trace : EventListener() {
 
 private class Acc(var id: String, var name: String, val args: StringBuilder, var extra: JSONObject?)
 
-/** Cliente FlatAI/Gemini com streaming (SSE): Anthropic Messages (Claude) ou OpenAI chat/completions (GPT, GLM, Gemini). */
+/**
+ * Cliente de IA com streaming (SSE): Anthropic Messages (Claude) ou OpenAI chat/completions (GPT, Gemini, Groq, DeepSeek...).
+ * Fallback automático: se o modelo escolhido não responde, tenta outros modelos do mesmo provedor e depois os outros
+ * provedores que tenham chave cadastrada.
+ */
 class AiClient {
     @Volatile private var trace = Trace()
     @Volatile private var cancelled = false
+    @Volatile private var singleShot = false
     var onStage: (String) -> Unit = {}
     private val json = "application/json".toMediaType()
+    // provedor ou "provedor/modelo" -> instante (elapsedRealtime) até o qual ele fica de molho depois de falhar
+    private val down = HashMap<String, Long>()
     // Sem reaproveitar conexões: conexões "paradas" que a rede derrubou em silêncio causavam esperas de minutos.
     private val http = OkHttpClient.Builder()
         .connectionPool(ConnectionPool(0, 1, TimeUnit.NANOSECONDS))
@@ -71,11 +80,47 @@ class AiClient {
     fun cancelAll() { cancelled = true; http.dispatcher.cancelAll() }
     fun traceText(): String = trace.text()
 
+    private fun httpCode(m: String): Int? = Regex("^HTTP (\\d{3})").find(m)?.groupValues?.get(1)?.toIntOrNull()
+
     fun chat(cfg: Config, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply {
         cancelled = false
-        onStage("Enviando para ${cfg.model}...")
-        return if (cfg.api == "anthropic") anthropic(cfg, system, messages, tools, onDelta) else openai(cfg, system, messages, tools, onDelta)
+        val now0 = SystemClock.elapsedRealtime()
+        val all = cfg.fallbackChain()
+        val ready = all.filter { (down[it.provider] ?: 0L) <= now0 && (down[it.provider + "/" + it.model] ?: 0L) <= now0 }
+        val chain = if (ready.isEmpty()) all else ready
+        singleShot = chain.size > 1
+        headerMs = if (chain.size > 1) 30_000L else 45_000L
+        val errors = mutableListOf<String>()
+        val bad = mutableSetOf<String>()
+        var first: Exception? = null
+        var emitted = false
+        val dl: (String) -> Unit = { emitted = true; onDelta(it) }
+        for (cand in chain) {
+            if (cand.provider in bad) continue
+            onStage(if (errors.isEmpty()) "Enviando para ${cand.model}..." else "Tentando ${providerLabel(cand.provider)} · ${cand.model}...")
+            try {
+                val msgs = if (cand.api == cfg.api) messages else convertMessages(messages, cfg.api, cand.api)
+                val r = chatOnce(cand, system, msgs, tools, dl)
+                return if (cand.api == cfg.api) r else convertReply(r, cfg.api)
+            } catch (e: Exception) {
+                if (cancelled || emitted) throw e
+                if (first == null) first = e
+                val m = e.message.orEmpty()
+                errors.add("${providerLabel(cand.provider)} · ${cand.model}: ${m.take(140)}")
+                val code = httpCode(m)
+                val until = SystemClock.elapsedRealtime()
+                if (code == 404) down[cand.provider + "/" + cand.model] = until + 600_000L
+                else if (code == 400) { /* pedido recusado: tenta o próximo modelo sem castigar o provedor */ }
+                else if (code == null || code == 401 || code == 402 || code == 403) { down[cand.provider] = until + 120_000L; bad.add(cand.provider) }
+                else down[cand.provider + "/" + cand.model] = until + 60_000L
+            }
+        }
+        if (errors.size <= 1) throw first ?: IllegalStateException("Falha ao chamar a IA")
+        throw IllegalStateException("Nenhum modelo respondeu:\n" + errors.joinToString("\n"))
     }
+
+    private fun chatOnce(cfg: Config, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply =
+        if (cfg.api == "anthropic") anthropic(cfg, system, messages, tools, onDelta) else openai(cfg, system, messages, tools, onDelta)
 
     // ---------- HTTP ----------
 
@@ -87,8 +132,8 @@ class AiClient {
             try {
                 return requestOnce(url, headers, body, onLine)
             } catch (e: IOException) {
-                val retry = attempt == 1 && !cancelled && !trace.gotHeaders && e !is UnknownHostException
-                if (!retry) throw if (trace.watchdogFired) IOException("O servidor não respondeu em ${HEADER_MS / 1000}s (tentei $attempt vez(es))") else e
+                val retry = attempt == 1 && !singleShot && !cancelled && !trace.gotHeaders && e !is UnknownHostException
+                if (!retry) throw if (trace.watchdogFired) IOException("O servidor não respondeu em ${headerMs / 1000}s (tentei $attempt vez(es))") else e
                 onStage("Sem resposta; tentando de novo numa conexão nova...")
             }
         }
@@ -127,7 +172,7 @@ class AiClient {
                 if (at.length() > 0) it.put("tools", at)
                 if (think) it.put("thinking", JSONObject().put("type", "enabled").put("budget_tokens", budget))
             }
-        val h = mapOf("x-api-key" to cfg.key(), "Authorization" to "Bearer ${cfg.key()}", "anthropic-version" to "2023-06-01")
+        val h = anthropicHeaders(cfg)
         val think0 = cfg.effort != "none"
         return try {
             runAnthropic(url, h, body(think0), onDelta)
@@ -202,7 +247,7 @@ class AiClient {
         return Reply(sb.toString(), calls, content)
     }
 
-    // ---------- OpenAI-compatível (GPT, GLM, DeepSeek, Gemini) ----------
+    // ---------- OpenAI-compatível (GPT, Gemini, Groq, DeepSeek, OpenRouter, Mistral, xAI...) ----------
 
     private fun openai(cfg: Config, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply {
         val base = cfg.baseUrl.trimEnd('/')
@@ -214,10 +259,12 @@ class AiClient {
             if (r) it.put("reasoning_effort", if (cfg.effort == "none") "low" else cfg.effort)
         }
         val h = mapOf("Authorization" to "Bearer ${cfg.key()}")
+        // reasoning_effort só nos provedores que aceitam; nos outros ele causaria um erro 400 e uma chamada repetida
+        val useR = cfg.provider == "flat" || cfg.provider == "gemini" || cfg.provider == "openai"
         return try {
-            runOpenAi(url, h, body(true), onDelta)
+            runOpenAi(url, h, body(useR), onDelta)
         } catch (e: IllegalStateException) {
-            if (e.message?.startsWith("HTTP 400") == true) runOpenAi(url, h, body(false), onDelta) else throw e
+            if (useR && e.message?.startsWith("HTTP 400") == true) runOpenAi(url, h, body(false), onDelta) else throw e
         }
     }
 
@@ -276,17 +323,19 @@ class AiClient {
 
     // ---------- teste, modelos e histórico ----------
 
-    /** Pedido mínimo, sem ferramentas e sem streaming, para testar chave, modelo e rede. */
+    /** Pedido mínimo, sem ferramentas e sem streaming, para testar chave, modelo e rede (sem fallback: testa só o que está escolhido). */
     fun testConnection(cfg: Config): String {
         val t0 = SystemClock.elapsedRealtime()
         cancelled = false
+        singleShot = false
+        headerMs = 45_000L
         return try {
             val base = cfg.baseUrl.trimEnd('/')
             val ask = JSONArray().put(JSONObject().put("role", "user").put("content", "Responda apenas: ok"))
             val text: String
             if (cfg.api == "anthropic") {
                 val url = if (base.endsWith("/v1")) "$base/messages" else "$base/v1/messages"
-                val res = request(url, mapOf("x-api-key" to cfg.key(), "Authorization" to "Bearer ${cfg.key()}", "anthropic-version" to "2023-06-01"),
+                val res = request(url, anthropicHeaders(cfg),
                     JSONObject().put("model", cfg.model).put("max_tokens", 16).put("messages", ask)) { } ?: error("Resposta inesperada")
                 text = res.getJSONArray("content").getJSONObject(0).optString("text")
             } else {
@@ -295,13 +344,13 @@ class AiClient {
                     JSONObject().put("model", cfg.model).put("messages", ask)) { } ?: error("Resposta inesperada")
                 text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content")
             }
-            "Conexão OK com ${cfg.model} em ${SystemClock.elapsedRealtime() - t0} ms. Resposta: ${text.take(40)}\nTempos: ${traceText()}"
+            "Conexão OK com ${providerLabel(cfg.provider)} · ${cfg.model} em ${SystemClock.elapsedRealtime() - t0} ms. Resposta: ${text.take(40)}\nTempos: ${traceText()}"
         } catch (e: Exception) {
-            "Falhou com ${cfg.model} após ${SystemClock.elapsedRealtime() - t0} ms: ${e.message}\nTempos: ${traceText()}"
+            "Falhou com ${providerLabel(cfg.provider)} · ${cfg.model} após ${SystemClock.elapsedRealtime() - t0} ms: ${e.message}\nTempos: ${traceText()}"
         }
     }
 
-    /** Lista os modelos liberados (FlatAI: GET /v1/models; Gemini: models.list do AI Studio). */
+    /** Lista os modelos liberados na chave (Gemini: models.list do AI Studio; os demais: GET /models no padrão OpenAI/Anthropic). */
     fun listModels(cfg: Config): List<String> {
         if (cfg.provider == "gemini") {
             val req = Request.Builder().url("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000")
@@ -321,9 +370,13 @@ class AiClient {
         }
         val base = cfg.baseUrl.trimEnd('/')
         val url = if (base.endsWith("/v1")) "$base/models" else "$base/v1/models"
-        val req = Request.Builder().url(url).get()
-            .header("Authorization", "Bearer ${cfg.key()}").header("x-api-key", cfg.key()).build()
-        http.newCall(req).execute().use { r ->
+        val rb = Request.Builder().url(url).get()
+        if (cfg.provider == "anthropic") rb.header("x-api-key", cfg.key()).header("anthropic-version", "2023-06-01")
+        else {
+            rb.header("Authorization", "Bearer ${cfg.key()}")
+            if (cfg.provider == "flat") rb.header("x-api-key", cfg.key())
+        }
+        http.newCall(rb.build()).execute().use { r ->
             val t = r.body?.string().orEmpty()
             if (!r.isSuccessful) error("HTTP ${r.code}")
             val arr = JSONObject(t).getJSONArray("data")

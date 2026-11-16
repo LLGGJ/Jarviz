@@ -1,20 +1,24 @@
-JARVIZ - PACOTE DE CORREÇÃO + ROSTO DE ROBÔ
+JARVIZ - PACOTE COMPLETO (rostinho de robô + mais provedores + fallback automático)
 
-COMO USAR (copie por cima do repositório, mantendo as pastas):
-  .github/workflows/build.yml
-  gradle.properties
-  app/src/main/java/com/jarvis/app/Terminal.kt   <- corrige o erro do build
-  app/src/main/java/com/jarvis/app/Face.kt       <- arquivo NOVO (rosto do robô)
+COMO USAR: copie por cima do repositório, mantendo as pastas. Substitui estes arquivos:
+  app/src/main/java/com/jarvis/app/Ui.kt         (rostinho no lugar do holograma + tela de provedores/fallback)
+  app/src/main/java/com/jarvis/app/Face.kt       (NOVO: o rostinho do robô)
+  app/src/main/java/com/jarvis/app/Ai.kt         (cliente de IA com fallback automático)
+  app/src/main/java/com/jarvis/app/Models.kt     (11 provedores)
+  app/src/main/java/com/jarvis/app/Prefs.kt      (chaves por provedor + fallback)
+  app/src/main/java/com/jarvis/app/Convert.kt    (NOVO: converte o histórico entre Claude e OpenAI ao trocar de provedor)
+  app/src/main/java/com/jarvis/app/Providers.kt  (NOVO: botão Atualizar modelos para qualquer provedor)
+  app/src/main/java/com/jarvis/app/Terminal.kt   (correção do build, igual ao que já está no repo)
+  .github/workflows/build.yml                    (mostra o erro do compilador na página do Actions)
+  gradle.properties                              (4 GB de memória)
 
-1) ERRO DO BUILD (já corrigido no Terminal.kt)
-   Terminal.kt:155 "Returns are not allowed for functions with expression body".
-   Era um "return" dentro do MiniCurl.run; troquei por error(), que cai no catch.
+PROVEDORES: FlatAI, Google Gemini, Anthropic, OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI (Grok), Together AI, Cerebras.
 
-2) ATIVAR O ROSTO (1 troca em 1 lugar, no arquivo Ui.kt)
-   Dentro de HologramCard, a chamada:
-       NucleoHologram(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
-   vira:
-       RobotFace(shown, { vm.level }, vm.cfg.voiceViz, Modifier.fillMaxSize(), bottomInset = 62.dp,
-   Troque SÓ essa chamada. Deixe a função NucleoHologram lá embaixo como está.
+FALLBACK: em Configurações > Fallback entre provedores. Se o modelo escolhido não responde (erro, sem saldo,
+chave inválida, fora do ar, sem resposta em 30s), o Jarvis tenta outros modelos do mesmo provedor e depois o
+primeiro modelo de cada outro provedor que tenha chave cadastrada. Para ter para onde ir, cadastre a chave de
+pelo menos 2 provedores (troque o PROVEDOR, cole a chave, e repita).
+Os nomes de modelo de cada provedor são só o ponto de partida: use o botão "Atualizar" para trazer a lista real da sua chave.
 
-Toque no rosto = falar. Segurar = troca o formato dos olhos (barras, onda, redondo).
+ROSTINHO: pisca, olha pros lados e sorri em repouso (às vezes faz olhinhos felizes); escutando = olhos grandes e boquinha "o";
+pensando = olha pra cima com pontinhos; falando = boca abre no ritmo da voz. Toque = falar. Segurar = muda o formato dos olhos.
