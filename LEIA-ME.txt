@@ -1,24 +1,21 @@
-JARVIZ - PACOTE COMPLETO (rostinho de robô + mais provedores + fallback automático)
+JARVIZ - ROBÔ SOZINHO + MODELO AUTOMÁTICO + CONTROLE DO CELULAR + SEGUNDO PLANO
 
-COMO USAR: copie por cima do repositório, mantendo as pastas. Substitui estes arquivos:
-  app/src/main/java/com/jarvis/app/Ui.kt         (rostinho no lugar do holograma + tela de provedores/fallback)
-  app/src/main/java/com/jarvis/app/Face.kt       (NOVO: o rostinho do robô)
-  app/src/main/java/com/jarvis/app/Ai.kt         (cliente de IA com fallback automático)
-  app/src/main/java/com/jarvis/app/Models.kt     (11 provedores)
-  app/src/main/java/com/jarvis/app/Prefs.kt      (chaves por provedor + fallback)
-  app/src/main/java/com/jarvis/app/Convert.kt    (NOVO: converte o histórico entre Claude e OpenAI ao trocar de provedor)
-  app/src/main/java/com/jarvis/app/Providers.kt  (NOVO: botão Atualizar modelos para qualquer provedor)
-  app/src/main/java/com/jarvis/app/Terminal.kt   (correção do build, igual ao que já está no repo)
-  .github/workflows/build.yml                    (mostra o erro do compilador na página do Actions)
-  gradle.properties                              (4 GB de memória)
+COPIE POR CIMA DO REPOSITÓRIO, mantendo as pastas (todos os arquivos abaixo):
+  app/src/main/AndroidManifest.xml                      (permissões novas + 2 serviços)
+  app/src/main/res/xml/jarvis_accessibility.xml         (NOVO)
+  app/src/main/res/values/jarvis_a11y.xml               (NOVO)
+  app/src/main/java/com/jarvis/app/
+    Ui.kt  Face.kt  Ai.kt  Models.kt  Prefs.kt  Convert.kt  Providers.kt  Terminal.kt  MainActivity.kt
+    Route.kt            (NOVO: decide se o pedido é pequeno ou grande)
+    ScreenControl.kt    (NOVO: o Jarvis vê a tela e toca/digita/rola em qualquer app)
+    JarvisService.kt    (NOVO: segundo plano)
+  .github/workflows/build.yml   gradle.properties
 
-PROVEDORES: FlatAI, Google Gemini, Anthropic, OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI (Grok), Together AI, Cerebras.
+DEPOIS DE INSTALAR (uma vez):
+  1) Configurações > Chaves de IA: cole a chave de 1 ou mais provedores.
+  2) Configurações > Celular e segundo plano > "Ligar a acessibilidade do Jarvis" e ligue o Jarvis na lista do Android.
+  3) Mesma tela > "Não deixar o Android me desligar" e escolha "Sem restrições" para o Jarvis.
 
-FALLBACK: em Configurações > Fallback entre provedores. Se o modelo escolhido não responde (erro, sem saldo,
-chave inválida, fora do ar, sem resposta em 30s), o Jarvis tenta outros modelos do mesmo provedor e depois o
-primeiro modelo de cada outro provedor que tenha chave cadastrada. Para ter para onde ir, cadastre a chave de
-pelo menos 2 provedores (troque o PROVEDOR, cole a chave, e repita).
-Os nomes de modelo de cada provedor são só o ponto de partida: use o botão "Atualizar" para trazer a lista real da sua chave.
-
-ROSTINHO: pisca, olha pros lados e sorri em repouso (às vezes faz olhinhos felizes); escutando = olhos grandes e boquinha "o";
-pensando = olha pra cima com pontinhos; falando = boca abre no ritmo da voz. Toque = falar. Segurar = muda o formato dos olhos.
+COMO USAR: toque no robô = falar (se ele está pensando, toque cancela; falando, interrompe). Segurar = digitar.
+Não há textos de status: ele mostra o que faz pela expressão (olhar e selinho: web, código, arquivos, terminal, celular, tela;
+carinha de dúvida ao trocar de provedor; carinha triste em erro).

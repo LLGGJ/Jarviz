@@ -73,3 +73,23 @@ fun baseFor(api: String, provider: String = "flat"): String = when (provider) {
     "flat" -> if (api == "anthropic") "https://api.flatai.pro" else "https://api.flatai.pro/v1"
     else -> PROVIDER_DEFS.firstOrNull { it.id == provider }?.base ?: "https://api.flatai.pro/v1"
 }
+
+/** Modelo pequeno (perguntas simples, rápido e barato) e grande (código, análise, tarefas difíceis) de cada provedor. */
+private val TIERS = mapOf(
+    "flat" to ("deepseek-ai/deepseek-v4.1-flash" to "claude-sonnet-5"),
+    "gemini" to ("gemini-3.5-flash-lite" to "gemini-3.1-pro-preview"),
+    "anthropic" to ("claude-haiku-5-5" to "claude-sonnet-5-5"),
+    "openai" to ("gpt-4.1-mini" to "gpt-4.1"),
+    "openrouter" to ("meta-llama/llama-3.3-70b-instruct" to "openrouter/auto"),
+    "groq" to ("llama-3.1-8b-instant" to "llama-3.3-70b-versatile"),
+    "deepseek" to ("deepseek-chat" to "deepseek-reasoner"),
+    "mistral" to ("mistral-small-latest" to "mistral-large-latest"),
+    "xai" to ("grok-3-mini" to "grok-3"),
+    "together" to ("meta-llama/Llama-3.3-70B-Instruct-Turbo" to "deepseek-ai/DeepSeek-V3"),
+    "cerebras" to ("llama3.1-8b" to "llama-3.3-70b"),
+)
+
+fun tierModel(p: String, heavy: Boolean): String {
+    val t = TIERS[p] ?: return defaultModelsFor(p).first()
+    return if (heavy) t.second else t.first
+}

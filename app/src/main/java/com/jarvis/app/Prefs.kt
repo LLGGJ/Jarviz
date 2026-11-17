@@ -32,6 +32,12 @@ data class Config(
     val modelLists: String = "",
     /** Se um modelo/provedor não responder, tenta o próximo configurado. */
     val fallback: Boolean = true,
+    /** Escolhe sozinho entre modelo pequeno (coisa simples) e grande (coisa difícil). */
+    val auto: Boolean = true,
+    /** Deixa o Jarvis tocar, digitar e rolar a tela (precisa do serviço de acessibilidade ligado). */
+    val screen: Boolean = true,
+    /** Fica ligado em segundo plano (serviço com notificação fixa). */
+    val background: Boolean = true,
 ) {
     private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
 
@@ -68,6 +74,29 @@ data class Config(
         val m = modelsOf(p).first()
         val a = apiFor(m, p)
         return copy(provider = p, model = m, preset = m, api = a, baseUrl = baseFor(a, p))
+    }
+
+    /** Provedor que vai na frente: o escolhido, ou o primeiro que tenha chave. */
+    fun baseProvider(): String = if (keyOf(provider).isNotBlank()) provider else (configured().firstOrNull() ?: provider)
+
+    /**
+     * Ordem de tentativa com roteamento automático: modelo pequeno ou grande do provedor principal,
+     * o outro tamanho dele e depois o mesmo tamanho dos outros provedores com chave.
+     */
+    fun routeChain(heavy: Boolean): List<Config> {
+        if (!auto) return fallbackChain()
+        fun mk(p: String, m: String): Config {
+            val a = apiFor(m, p)
+            return copy(provider = p, model = m, preset = m, api = a, baseUrl = baseFor(a, p))
+        }
+        val bp = baseProvider()
+        val first = tierModel(bp, heavy)
+        val out = mutableListOf(mk(bp, first))
+        if (!fallback) return out
+        val other = tierModel(bp, !heavy)
+        if (other != first) out.add(mk(bp, other))
+        configured().filter { it != bp }.forEach { out.add(mk(it, tierModel(it, heavy))) }
+        return out.take(8)
     }
 
     /** Provedores que têm chave cadastrada. */
@@ -121,6 +150,9 @@ class Prefs(ctx: Context) {
         keys = sp.getString("keys", d.keys)!!,
         modelLists = sp.getString("modelLists", d.modelLists)!!,
         fallback = sp.getBoolean("fallback", d.fallback),
+        auto = sp.getBoolean("auto", d.auto),
+        screen = sp.getBoolean("screen", d.screen),
+        background = sp.getBoolean("background", d.background),
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -135,5 +167,6 @@ class Prefs(ctx: Context) {
         .putString("provider", c.provider).putString("geminiKey", c.geminiKey).putString("geminiModels", c.geminiModels)
         .putBoolean("fast", c.fast).putString("clapSens", c.clapSens)
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
-        .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback).apply()
+        .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback)
+        .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background).apply()
 }

@@ -82,10 +82,33 @@ class AiClient {
 
     private fun httpCode(m: String): Int? = Regex("^HTTP (\\d{3})").find(m)?.groupValues?.get(1)?.toIntOrNull()
 
+    /**
+     * Uma conversa com a IA. Escolhe modelo pequeno ou grande conforme o pedido e, se a IA pedir ferramentas de tela
+     * (screen_*), executa no próprio celular e continua sozinha até terminar.
+     */
     fun chat(cfg: Config, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply {
         cancelled = false
+        val heavy = isHeavy(messages, tools)
+        val useScreen = cfg.screen && ScreenControl.ready()
+        val allTools = if (useScreen) JSONArray(tools.toString()).also { arr -> ScreenControl.toolDefs().forEach { arr.put(it) } } else tools
+        val sys = if (useScreen) system + ScreenControl.PROMPT else system
+        val work = if (useScreen) JSONArray(messages.toString()) else messages
+        var steps = 0
+        while (true) {
+            if (cancelled) throw IOException("Cancelado")
+            val r = chatStep(cfg, heavy, sys, work, allTools, onDelta)
+            val screenOnly = useScreen && r.calls.isNotEmpty() && r.calls.all { it.name.startsWith("screen_") } && steps < 30
+            if (!screenOnly) return r
+            steps++
+            appendAssistant(cfg.api, work, r)
+            val outs = r.calls.map { c -> onStage("Executando ${c.name}..."); c to ScreenControl.run(c.name, c.args) }
+            appendResults(cfg.api, work, outs)
+        }
+    }
+
+    private fun chatStep(cfg: Config, heavy: Boolean, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply {
         val now0 = SystemClock.elapsedRealtime()
-        val all = cfg.fallbackChain()
+        val all = cfg.routeChain(heavy)
         val ready = all.filter { (down[it.provider] ?: 0L) <= now0 && (down[it.provider + "/" + it.model] ?: 0L) <= now0 }
         val chain = if (ready.isEmpty()) all else ready
         singleShot = chain.size > 1

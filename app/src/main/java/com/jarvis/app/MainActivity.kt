@@ -8,14 +8,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
-    private val vm: JarvisViewModel by viewModels()
+    // O cérebro vive fora da tela (BrainStore), então continua escutando em segundo plano.
+    private val vm: JarvisViewModel by lazy { BrainStore.get(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStart() { super.onStart(); vm.resumeClap() }
-    override fun onStop() { super.onStop(); vm.pause() }
+    override fun onStop() { super.onStop(); if (!vm.cfg.background) vm.pause() }
 }
 
 @Composable
@@ -32,6 +32,7 @@ fun Root(vm: JarvisViewModel) {
     fun granted(p: String) = ContextCompat.checkSelfPermission(ctx, p) == PackageManager.PERMISSION_GRANTED
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         vm.onMic(granted(Manifest.permission.RECORD_AUDIO))
+        syncBackground(ctx, vm.cfg.background)
     }
     LaunchedEffect(Unit) {
         val want = buildList {
@@ -41,5 +42,6 @@ fun Root(vm: JarvisViewModel) {
         }.filter { !granted(it) }
         if (want.isEmpty()) vm.onMic(true) else perms.launch(want.toTypedArray())
     }
+    LaunchedEffect(vm.cfg.background) { syncBackground(ctx, vm.cfg.background) }
     JarvisApp(vm)
 }
