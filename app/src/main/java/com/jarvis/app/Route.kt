@@ -3,7 +3,7 @@ package com.jarvis.app
 import org.json.JSONArray
 
 private val HEAVY = Regex(
-    "(?i)(c[óo]digo|programa|script|fun[çc][ãa]o|\\bbug|erro|compil|github|reposit[óo]rio|analis|explic|detalh|compar|resum|traduz|escreva|\\bcrie\\b|desenvolv|calcul|planej|pesquis|relat[óo]rio|projeto|\\bsite\\b|\\bapp\\b|v[ií]deo|document|passo a passo|por que|porque|" +
+    "(?i)(luz|\\bcasa\\b|computador|\\bpc\\b|tomada|timeline|clipe|landing|scroll|webgl|three|\\b3d\\b|anima|c[óo]digo|programa|script|fun[çc][ãa]o|\\bbug|erro|compil|github|reposit[óo]rio|analis|explic|detalh|compar|resum|traduz|escreva|\\bcrie\\b|desenvolv|calcul|planej|pesquis|relat[óo]rio|projeto|\\bsite\\b|\\bapp\\b|v[ií]deo|document|passo a passo|por que|porque|" +
         "tela|clique|toque|digite|abra |abrir|mande|envie|mensagem|instal|configur|whatsapp|instagram)"
 )
 

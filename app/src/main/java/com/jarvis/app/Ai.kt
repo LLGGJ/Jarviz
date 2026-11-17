@@ -89,19 +89,43 @@ class AiClient {
     fun chat(cfg: Config, system: String, messages: JSONArray, tools: JSONArray, onDelta: (String) -> Unit): Reply {
         cancelled = false
         val heavy = isHeavy(messages, tools)
+        HomeControl.sync(cfg)
+        val userText = lastUserText(messages)
         val useScreen = cfg.screen && ScreenControl.ready()
-        val allTools = if (useScreen) JSONArray(tools.toString()).also { arr -> ScreenControl.toolDefs().forEach { arr.put(it) } } else tools
-        val sys = if (useScreen) system + ScreenControl.PROMPT else system
-        val work = if (useScreen) JSONArray(messages.toString()) else messages
+        val useVideo = VideoEditor.wanted(userText)
+        val useHome = HomeControl.homeReady()
+        val usePc = HomeControl.pcReady()
+        val extra = JSONArray()
+        if (useScreen) ScreenControl.toolDefs().forEach { extra.put(it) }
+        if (useVideo) VideoEditor.toolDefs().forEach { extra.put(it) }
+        if (useHome) HomeControl.homeDefs().forEach { extra.put(it) }
+        if (usePc) HomeControl.pcDefs().forEach { extra.put(it) }
+        val augmented = extra.length() > 0
+        val allTools = if (augmented) JSONArray(tools.toString()).also { arr -> for (k in 0 until extra.length()) arr.put(extra.get(k)) } else tools
+        val sys = system + (if (useScreen) ScreenControl.PROMPT else "") + (if (useVideo) VideoEditor.PROMPT else "") +
+            (if (useHome) HomeControl.HOME_PROMPT else "") + (if (usePc) HomeControl.PC_PROMPT else "") + Skills.forRequest(userText)
+        val work = if (augmented) JSONArray(messages.toString()) else messages
+        val owns: (String) -> Boolean = { n ->
+            (useScreen && n.startsWith("screen_")) || (useVideo && n.startsWith("video_")) ||
+                (useHome && n.startsWith("home_")) || (usePc && n.startsWith("pc_"))
+        }
         var steps = 0
         while (true) {
             if (cancelled) throw IOException("Cancelado")
             val r = chatStep(cfg, heavy, sys, work, allTools, onDelta)
-            val screenOnly = useScreen && r.calls.isNotEmpty() && r.calls.all { it.name.startsWith("screen_") } && steps < 30
-            if (!screenOnly) return r
+            val own = augmented && r.calls.isNotEmpty() && steps < 40 && r.calls.all { owns(it.name) }
+            if (!own) return r
             steps++
             appendAssistant(cfg.api, work, r)
-            val outs = r.calls.map { c -> onStage("Executando ${c.name}..."); c to ScreenControl.run(c.name, c.args) }
+            val outs = r.calls.map { c ->
+                onStage("Executando ${c.name}...")
+                c to when {
+                    c.name.startsWith("video_") -> VideoEditor.run(c.name, c.args)
+                    c.name.startsWith("home_") -> HomeControl.runHome(c.name, c.args)
+                    c.name.startsWith("pc_") -> HomeControl.runPc(c.name, c.args)
+                    else -> ScreenControl.run(c.name, c.args)
+                }
+            }
             appendResults(cfg.api, work, outs)
         }
     }

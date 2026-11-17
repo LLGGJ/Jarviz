@@ -38,6 +38,11 @@ data class Config(
     val screen: Boolean = true,
     /** Fica ligado em segundo plano (serviço com notificação fixa). */
     val background: Boolean = true,
+    /** Casa (Home Assistant) e PC (agente jarvis_pc_agent.py). */
+    val haUrl: String = "",
+    val haToken: String = "",
+    val pcUrl: String = "",
+    val pcToken: String = "",
 ) {
     private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
 
@@ -153,6 +158,10 @@ class Prefs(ctx: Context) {
         auto = sp.getBoolean("auto", d.auto),
         screen = sp.getBoolean("screen", d.screen),
         background = sp.getBoolean("background", d.background),
+        haUrl = sp.getString("haUrl", d.haUrl)!!,
+        haToken = sp.getString("haToken", d.haToken)!!,
+        pcUrl = sp.getString("pcUrl", d.pcUrl)!!,
+        pcToken = sp.getString("pcToken", d.pcToken)!!,
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -168,5 +177,6 @@ class Prefs(ctx: Context) {
         .putBoolean("fast", c.fast).putString("clapSens", c.clapSens)
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
         .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback)
-        .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background).apply()
+        .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background)
+        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).apply()
 }

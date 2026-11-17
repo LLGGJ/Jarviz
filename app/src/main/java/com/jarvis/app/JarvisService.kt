@@ -40,6 +40,7 @@ class JarvisService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        VideoEditor.ctx = applicationContext
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel("jarvis_bg", "Jarvis ligado", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)

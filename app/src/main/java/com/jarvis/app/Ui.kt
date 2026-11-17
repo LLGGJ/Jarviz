@@ -195,7 +195,7 @@ fun JarvisApp(vm: JarvisViewModel) {
         ModalNavigationDrawer(
             drawerState = drawer,
             drawerContent = { ModalDrawerSheet(drawerContainerColor = Panel) { SettingsPanel(vm) } }
-        ) { MainScreen(vm) { scope.launch { drawer.open() } } }
+        ) { if (VideoEditor.open) VideoEditorScreen(vm) else MainScreen(vm) { scope.launch { drawer.open() } } }
     }
 }
 
@@ -595,6 +595,13 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonField(c.firecrawl, { vm.updateCfg(vm.cfg.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL)", secret = true)
             NeonToggle("Verificar o celular 1x por dia", c.autoScan) { vm.updateCfg(vm.cfg.copy(autoScan = it)) }
             NeonButton("Verificar agora", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.SHIELD) { vm.runScanNow() }
+        }
+        Section("Casa e PC") {
+            Text("Casa: use o Home Assistant (URL como http://192.168.0.10:8123 e um token de acesso de longa duração). PC: rode tools/jarvis_pc_agent.py no computador e cole a URL e o token que ele mostra.", color = Muted, fontSize = 12.sp)
+            NeonField(c.haUrl, { vm.updateCfg(vm.cfg.copy(haUrl = it.trim())) }, "HOME ASSISTANT - URL", placeholder = "http://192.168.0.10:8123")
+            NeonField(c.haToken, { vm.updateCfg(vm.cfg.copy(haToken = it.trim())) }, "HOME ASSISTANT - TOKEN", secret = true)
+            NeonField(c.pcUrl, { vm.updateCfg(vm.cfg.copy(pcUrl = it.trim())) }, "PC - URL DO AGENTE", placeholder = "http://192.168.0.20:8765")
+            NeonField(c.pcToken, { vm.updateCfg(vm.cfg.copy(pcToken = it.trim())) }, "PC - TOKEN", secret = true)
         }
         Section("Terminal Linux (Termux)") {
             val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
