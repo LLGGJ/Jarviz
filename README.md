@@ -31,7 +31,10 @@ O Jarvis é um app Android feito em **Kotlin + Jetpack Compose**. A tela inteira
 | 🔁 | **Fallback automático** | Se um modelo ou provedor falha, sem saldo ou sem resposta, ele tenta o próximo que você configurou. |
 | 📱 | **Controle do celular** | Pelo serviço de acessibilidade, vê a tela e toca, digita, rola, abre apps e usa os botões do sistema, em qualquer app. |
 | 🔋 | **Segundo plano** | Fica ligado com uma notificação fixa e continua escutando. |
-| 🎬 | **Editor de vídeo com timeline** 🧪 | Você manda vídeos, fotos e música, pede por voz e a timeline se monta na tela. Exporta para a galeria. |
+| 🫧 | **Robô flutuante** 🧪 | Um robozinho que flutua sobre outros apps enquanto o Jarvis não está na tela. Arraste para mover, toque para falar. |
+| 🗣️ | **Ativar falando "Jarvis"** 🧪 | Reconhecimento offline (Vosk). Baixa um modelo de 31 MB na primeira vez. |
+| 😠 | **Emoções** 🧪 | Chacoalhe e ele fica bravo; deixe cair e ele se assusta; tape a tela ou deixe parado e ele dorme; vários toques seguidos e ele ri. |
+| 🎬 | **Editor de vídeo com timeline** 🧪 | Você manda vídeos, fotos e música, pede por voz e a timeline se monta na tela. Corta no ritmo da música, aplica filtros, busca música livre (Creative Commons, no Jamendo) e exporta para a galeria. |
 | 🌐 | **Sites 3D com scroll e vídeo** 🧪 | Skill baseada no repositório [engineering-creative-ai](https://github.com/LLGGJ/engineering-creative-ai). |
 | 🏠 | **Casa inteligente** 🧪 | Controla luzes, tomadas, ar, portão e cenas pelo Home Assistant. |
 | 💻 | **Seu PC** 🧪 | Um agente em Python no computador deixa o Jarvis rodar comandos, abrir programas, usar teclado e mouse e ligar o PC pela rede. |
@@ -65,7 +68,7 @@ O Jarvis é um app Android feito em **Kotlin + Jetpack Compose**. A tela inteira
 Diga *"edita um vídeo"*. A tela vira um editor: toque em **+ Mídia**, escolha vídeos, fotos e música, e peça a edição por voz. O Jarvis corta, junta, muda a velocidade, põe legenda e música enquanto você vê a timeline se mexer. **Exportar vídeo** salva na galeria, em `Movies/Jarvis` (vertical para Shorts e Reels, ou horizontal).
 
 - A prévia mostra os cortes, mas **velocidade e legenda só aparecem no vídeo exportado**.
-- **Música:** use só as suas ou as livres de direitos autorais (Pixabay Music, YouTube Audio Library, Free Music Archive). O Jarvis não baixa música protegida.
+- **Música:** use só as suas ou as livres de direitos autorais. Com o *Client ID* gratuito do Jamendo (Configurações > GitHub e extras) o Jarvis busca músicas Creative Commons e mostra a licença: algumas exigem crédito ao artista e algumas proíbem uso comercial. Ele não baixa música protegida.
 
 ## 🏠 Casa e 💻 PC
 
@@ -109,12 +112,14 @@ Ações sensíveis (destrancar porta, abrir portão, desarmar alarme, apagar, fo
 
 ## 🗺️ Roadmap
 
-- [ ] Editor: corte no ritmo da música, transições e efeitos, busca de música livre de direitos
-- [ ] Robô flutuando sobre outros apps enquanto trabalha
-- [ ] Ativar só falando "Jarvis"
+- [x] Editor: fade e zoom nos clipes 🧪
+- [ ] Editor: fusão real entre dois clipes (crossfade) e efeitos 3D
+- [x] Robô flutuando sobre outros apps 🧪
+- [x] Ativar só falando "Jarvis" 🧪 (precisa de teste em vários aparelhos)
 - [ ] Transcrição de voz melhor
-- [ ] Terminal próprio, sem depender do Termux
-- [ ] Buscar e criar chaves de API pelo Chrome
+- [x] Terminal do Jarvis dentro do app 🧪 (usa o Termux se houver, senão o shell do Android)
+- [ ] Linux completo (apt, python, git) sem o Termux
+- [x] Pegar chaves de API pelo navegador 🧪 (você faz login e captcha; ele lê a chave e só salva com a sua confirmação)
 
 ## 📄 Licença
 

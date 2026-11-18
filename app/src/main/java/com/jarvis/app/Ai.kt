@@ -92,6 +92,11 @@ class AiClient {
         HomeControl.sync(cfg)
         VideoEditor.jamendoId = cfg.jamendoKey.trim()
         val userText = lastUserText(messages)
+        var preNote = ""
+        if (Regex("(?i)((editar|edita|editando|montar|monta|fazer|faz|criar|cria).{0,24}v[ií]deo|editor de v[ií]deo|timeline)").containsMatchIn(userText) && !VideoEditor.open) {
+            VideoEditor.run("video_open", JSONObject())
+            preNote = "\n\nO editor de vídeo JÁ FOI ABERTO na tela do usuário agora; não chame video_open de novo. Diga que ele pode tocar em \"+ Mídia\" para escolher vídeos, fotos e música, e pergunte o estilo que ele quer."
+        }
         val useScreen = cfg.screen && ScreenControl.ready()
         val useVideo = VideoEditor.wanted(userText)
         val useHome = HomeControl.homeReady()
@@ -104,10 +109,11 @@ class AiClient {
         if (usePc) HomeControl.pcDefs().forEach { extra.put(it) }
         if (useApp) AppActions.defs().forEach { extra.put(it) }
         val augmented = extra.length() > 0
+        DebugLog.add("pedido: \"${userText.take(70)}\" | grande=$heavy | ferramentas: tela=$useScreen video=$useVideo casa=$useHome pc=$usePc app=$useApp | total=${extra.length()}")
         val allTools = if (augmented) JSONArray(tools.toString()).also { arr -> for (k in 0 until extra.length()) arr.put(extra.get(k)) } else tools
         val sys = system + (if (useScreen) ScreenControl.PROMPT else "") + (if (useVideo) VideoEditor.PROMPT else "") +
             (if (useHome) HomeControl.HOME_PROMPT else "") + (if (usePc) HomeControl.PC_PROMPT else "") + Skills.forRequest(userText) +
-            Skills.VOICE_NOTE + (if (useApp) Skills.keysSkill() else "")
+            Skills.VOICE_NOTE + (if (useApp) Skills.keysSkill() else "") + preNote
         val work = if (augmented) JSONArray(messages.toString()) else messages
         val owns: (String) -> Boolean = { n ->
             (useScreen && n.startsWith("screen_")) || (useVideo && n.startsWith("video_")) ||
@@ -117,19 +123,22 @@ class AiClient {
         while (true) {
             if (cancelled) throw IOException("Cancelado")
             val r = chatStep(cfg, heavy, sys, work, allTools, onDelta)
+            DebugLog.add("IA: ${r.calls.size} chamadas [${r.calls.joinToString { it.name }}] texto=\"${r.text.take(90)}\"")
             val own = augmented && r.calls.isNotEmpty() && steps < 40 && r.calls.all { owns(it.name) }
             if (!own) return r
             steps++
             appendAssistant(cfg.api, work, r)
             val outs = r.calls.map { c ->
                 onStage("Executando ${c.name}...")
-                c to when {
+                val res = when {
                     c.name.startsWith("video_") -> VideoEditor.run(c.name, c.args)
                     c.name.startsWith("home_") -> HomeControl.runHome(c.name, c.args)
                     c.name.startsWith("pc_") -> HomeControl.runPc(c.name, c.args)
                     c.name.startsWith("app_") -> AppActions.run(c.name, c.args)
                     else -> ScreenControl.run(c.name, c.args)
                 }
+                DebugLog.add("${c.name} -> ${res.take(110)}")
+                c to res
             }
             appendResults(cfg.api, work, outs)
         }
@@ -150,6 +159,7 @@ class AiClient {
         for (cand in chain) {
             if (cand.provider in bad) continue
             onStage(if (errors.isEmpty()) "Enviando para ${cand.model}..." else "Tentando ${providerLabel(cand.provider)} · ${cand.model}...")
+            DebugLog.add("tentando ${cand.provider} · ${cand.model}")
             try {
                 val msgs = if (cand.api == cfg.api) messages else convertMessages(messages, cfg.api, cand.api)
                 val r = chatOnce(cand, system, msgs, tools, dl)
@@ -157,6 +167,7 @@ class AiClient {
             } catch (e: Exception) {
                 if (cancelled || emitted) throw e
                 if (first == null) first = e
+                DebugLog.add("falhou: ${e.message?.take(140)}")
                 val m = e.message.orEmpty()
                 errors.add("${providerLabel(cand.provider)} · ${cand.model}: ${m.take(140)}")
                 val code = httpCode(m)

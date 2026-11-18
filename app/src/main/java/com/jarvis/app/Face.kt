@@ -88,12 +88,16 @@ private fun DrawScope.badge(kind: String, c: Offset, r: Float, t: Float, col: Co
 @Composable
 fun RobotFace(
     state: State, level: () -> Float, activity: String, error: Boolean, modifier: Modifier = Modifier,
-    onTap: () -> Unit = {}, onLong: () -> Unit = {}
+    onTap: () -> Unit = {}, onLong: () -> Unit = {}, mood: String = ""
 ) {
     val think by animateFloatAsState(if (state == State.THINKING) 1f else 0f, tween(350), label = "ft")
     val listen by animateFloatAsState(if (state == State.LISTENING) 1f else 0f, tween(300), label = "fl")
     val speak by animateFloatAsState(if (state == State.SPEAKING) 1f else 0f, tween(250), label = "fs")
     val sad by animateFloatAsState(if (error && state == State.IDLE) 1f else 0f, tween(400), label = "fd")
+    val angry by animateFloatAsState(if (mood == "angry") 1f else 0f, tween(200), label = "fa")
+    val scared by animateFloatAsState(if (mood == "scared") 1f else 0f, tween(150), label = "fx")
+    val sleepy by animateFloatAsState(if (mood == "sleepy") 1f else 0f, tween(600), label = "fz")
+    val joy by animateFloatAsState(if (mood == "joy") 1f else 0f, tween(200), label = "fj")
     val tint by animateColorAsState(faceColor(state), tween(400), label = "fc")
     val levelFn by rememberUpdatedState(level)
     val act by rememberUpdatedState(activity)
@@ -118,11 +122,11 @@ fun RobotFace(
             val w = size.width
             val h = size.height
             val dp = 1.dp.toPx()
-            val cx = w / 2f
+            val cx = w / 2f + sin(t * 55f) * 2f * dp * (angry + scared)
             val cy = h * 0.47f + sin(t * 1.3f) * 2f * dp
-            val calm = (1f - think - listen - speak - sad).coerceIn(0f, 1f)
+            val calm = (1f - think - listen - speak - sad - angry - scared - sleepy - joy).coerceIn(0f, 1f)
             val a = act
-            val tc = lerp(tint, Color(0xFF8A97B3), sad)
+            val tc = lerp(lerp(lerp(tint, Color(0xFF8A97B3), sad), Color(0xFFFF5A5A), angry), Color(0xFF9AA7C7), sleepy * 0.5f)
 
             val fw = min(w * 0.86f, h * 0.6f / 0.72f)
             val fh = fw * 0.72f
@@ -161,11 +165,11 @@ fun RobotFace(
             val b2 = if (bc2 < 0.15f) sin(bc2 / 0.15f * 3.1415927f) else 0f
             val blink = maxOf(b1, b2)
             val cyc = t % 11f
-            val happy = calm > 0.5f && cyc > 8.2f && cyc < 9.6f
+            val happy = (calm > 0.5f && cyc > 8.2f && cyc < 9.6f) || joy > 0.5f
 
             // olhos (o olhar muda conforme a tarefa)
             val ew = fw * 0.15f
-            val openH = 1f + listen * 0.12f + listen * 0.18f * L - think * 0.30f - speak * 0.06f - sad * 0.2f
+            val openH = 1f + listen * 0.12f + listen * 0.18f * L - think * 0.30f - speak * 0.06f - sad * 0.2f - angry * 0.4f + scared * 0.45f - sleepy * 0.88f
             val eh = (fw * 0.2f * openH * (1f - blink * 0.92f)).coerceAtLeast(2f * dp)
             val gxA = when (a) {
                 "web" -> sin(t * 5f) * 0.9f
@@ -202,6 +206,34 @@ fun RobotFace(
                     }
                 }
             }
+            if (angry > 0.02f) {
+                for (side in listOf(-1f, 1f)) {
+                    val ex = cx + side * fw * 0.2f
+                    val y0 = eyeY - eh * 0.75f
+                    drawLine(tc.copy(alpha = angry), Offset(ex + side * ew * 0.8f, y0 - fh * 0.05f), Offset(ex - side * ew * 0.8f, y0 + fh * 0.04f), ew * 0.25f, StrokeCap.Round)
+                }
+                for (k in 0..1) {
+                    val pp = (t * 1.2f + k * 0.5f) % 1f
+                    drawCircle(Color(0xFFFFB0B0).copy(alpha = angry * (1f - pp) * 0.8f), fh * 0.04f * (1f + pp), Offset(cx + (k * 2 - 1) * fw * 0.3f, top - pp * fh * 0.2f))
+                }
+            }
+            if (scared > 0.02f) {
+                val dy = ((t * 0.8f) % 1f) * fh * 0.25f
+                drawCircle(Color(0xFF6EC1FF).copy(alpha = scared * 0.9f), fw * 0.02f, Offset(left + fw * 0.12f, top + fh * 0.15f + dy))
+                drawCircle(Color(0xFF6EC1FF).copy(alpha = scared * 0.9f), fw * 0.016f, Offset(left + fw * 0.9f, top + fh * 0.25f + dy * 0.7f))
+            }
+            if (sleepy > 0.02f) {
+                for (k in 0..2) {
+                    val pp = (t * 0.5f + k * 0.33f) % 1f
+                    val zx = left + fw * 0.78f + pp * fw * 0.1f
+                    val zy = top + fh * 0.1f - pp * fh * 0.25f
+                    val zs = fh * 0.05f * (0.6f + pp)
+                    val zc = tc.copy(alpha = sleepy * (1f - pp))
+                    drawLine(zc, Offset(zx, zy), Offset(zx + zs, zy), 2f * dp, StrokeCap.Round)
+                    drawLine(zc, Offset(zx + zs, zy), Offset(zx, zy + zs), 2f * dp, StrokeCap.Round)
+                    drawLine(zc, Offset(zx, zy + zs), Offset(zx + zs, zy + zs), 2f * dp, StrokeCap.Round)
+                }
+            }
             if (sad > 0.02f) {
                 val ty = eyeY + eh * 0.7f + ((t * 0.6f) % 1f) * fh * 0.14f
                 drawCircle(Color(0xFF6EC1FF).copy(alpha = sad), fw * 0.012f, Offset(cx - fw * 0.2f + ew * 0.3f, ty))
@@ -217,11 +249,11 @@ fun RobotFace(
             val my = cy + fh * 0.22f
             val mw = fw * 0.2f
             val lw = fw * 0.024f
-            if (calm + sad > 0.01f) {
+            if (calm + sad + angry + scared + joy > 0.01f) {
                 val smile = fh * (if (happy) 0.17f else 0.09f + 0.012f * sin(t * 1.4f))
-                val curve = smile * (calm - sad * 0.8f)
+                val curve = smile * (calm - sad * 0.8f - angry * 1.2f - scared * 0.6f + joy * 1.5f)
                 val p = Path().apply { moveTo(cx - mw, my); quadraticBezierTo(cx, my + curve, cx + mw, my) }
-                drawPath(p, tc.copy(alpha = (calm + sad).coerceAtMost(1f)), style = Stroke(lw, cap = StrokeCap.Round))
+                drawPath(p, tc.copy(alpha = (calm + sad + angry + scared + joy).coerceAtMost(1f)), style = Stroke(lw, cap = StrokeCap.Round))
             }
             if (listen > 0.01f) {
                 drawCircle(tc.copy(alpha = listen), fw * 0.03f * (1f + 0.9f * L), Offset(cx, my), style = Stroke(lw))

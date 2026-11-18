@@ -81,6 +81,7 @@ object WakeWord {
             val bufSize = maxOf(AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT), 6400)
             var ar: AudioRecord? = null
             status = "Escutando \"Jarvis\"."
+            DebugLog.add("wake: escutando")
             while (running) {
                 if (vm.state != State.IDLE) {
                     ar?.stop(); ar?.release(); ar = null
@@ -94,7 +95,9 @@ object WakeWord {
                 }
                 val n = ar.read(buf, 0, buf.size)
                 if (n > 0) {
-                    val text = (if (rec.acceptWaveForm(buf, n)) rec.result else rec.partialResult).lowercase()
+                    val fin = rec.acceptWaveForm(buf, n)
+                    val text = (if (fin) rec.result else rec.partialResult).lowercase()
+                    if (fin && text.length > 18) DebugLog.add("wake ouviu: " + text.take(80))
                     if (HIT.containsMatchIn(text)) {
                         rec.reset()
                         ar.stop(); ar.release(); ar = null
@@ -109,6 +112,7 @@ object WakeWord {
             status = ""
         } catch (e: Throwable) {
             status = "Erro: ${e.message}"
+            DebugLog.add("wake erro: ${e.message}")
         } finally {
             running = false
         }

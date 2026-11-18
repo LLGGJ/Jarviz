@@ -1,5 +1,8 @@
 package com.jarvis.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -383,22 +386,24 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
     LaunchedEffect(last?.text?.length, vm.msgs.size) {
         if (last != null) { capVisible = true; delay(12000); capVisible = false }
     }
+    LaunchedEffect(Unit) { while (true) { delay(1000); Mood.tick(vm.state == State.IDLE) } }
     val failed = capVisible && last?.text?.startsWith("Erro") == true
     val p = vm.pending
     val openLink: (String) -> Unit = { u -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
     Box(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Bg, Color(0xFF182036)))).statusBarsPadding().navigationBarsPadding()
-            .pointerInput(Unit) { awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); vm.noteTouch() } } }
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); vm.noteTouch(); Mood.touch() } } }
     ) {
         // O robô é a tela inteira: toque = falar (ou cancelar/interromper se ele está ocupado); segurar = digitar.
         RobotFace(vm.shown, { vm.level }, activityOf(vm), failed, Modifier.fillMaxSize(),
             onTap = {
+                Mood.tapped()
                 if (typing) typing = false
                 else if (vm.state == State.THINKING) vm.cancel()
                 else if (vm.state == State.SPEAKING) vm.interrupt()
                 else vm.listenNow()
             },
-            onLong = { typing = !typing })
+            onLong = { typing = !typing }, mood = Mood.current)
         Box(Modifier.align(Alignment.TopStart).padding(14.dp).size(38.dp).clip(CircleShape).background(Glass).tap(openMenu), contentAlignment = Alignment.Center) {
             NeonIcon(Ico.MENU, Modifier.size(18.dp), Muted)
         }
@@ -624,6 +629,17 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonField(c.haToken, { vm.updateCfg(vm.cfg.copy(haToken = it.trim())) }, "HOME ASSISTANT - TOKEN", secret = true)
             NeonField(c.pcUrl, { vm.updateCfg(vm.cfg.copy(pcUrl = it.trim())) }, "PC - URL DO AGENTE", placeholder = "http://192.168.0.20:8765")
             NeonField(c.pcToken, { vm.updateCfg(vm.cfg.copy(pcToken = it.trim())) }, "PC - TOKEN", secret = true)
+        }
+        Section("Diagnóstico (me mande isto se algo não funcionar)") {
+            NeonButton("Testar: abrir o editor de vídeo", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.BOLT) { VideoEditor.open = true; DebugLog.add("teste: editor aberto à mão") }
+            NeonButton("Copiar o registro", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.CLIP) {
+                (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("jarvis", DebugLog.lines.joinToString("\n")))
+            }
+            NeonButton("Limpar o registro", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TRASH) { DebugLog.lines.clear() }
+            Text(
+                if (DebugLog.lines.isEmpty()) "Vazio. Peça algo ao Jarvis e volte aqui." else DebugLog.lines.takeLast(30).joinToString("\n"),
+                color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+            )
         }
         Section("Terminal Linux (Termux)") {
             val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }

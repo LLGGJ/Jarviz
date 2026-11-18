@@ -1,9 +1,7 @@
-JARVIZ v5 - FLUTUANTE, "JARVIS" POR VOZ, TERMINAL E TRANSIÇÕES (inclui tudo das versões anteriores)
+JARVIZ v6 - DIAGNÓSTICO + EMOÇÕES (inclui tudo das versões anteriores)
 
-Novo: Overlay.kt  WakeWord.kt  TerminalUi.kt   Alterados: VideoEditor.kt Ui.kt Prefs.kt MainActivity.kt JarvisService.kt
-      AndroidManifest.xml  app/build.gradle.kts (Vosk)  README.md
+Novo: DebugLog.kt  Mood.kt
+Alterados: Ai.kt (registro + abre o editor de vídeo sozinho quando você pede)  Face.kt (bravo, assustado, sonolento, feliz)
+           Ui.kt (Diagnóstico nas configurações)  WakeWord.kt  MainActivity.kt  JarvisService.kt  README.md
 
-Depois de instalar:
-  - Configurações > Celular e segundo plano > "Permitir exibir sobre outros apps" e deixe "Robozinho flutuando" ligado.
-  - Ligue "Ativar falando Jarvis": a primeira vez baixa 31 MB.
-  - Configurações > Terminal Linux > "Abrir terminal do Jarvis".
+SE ALGO NÃO FUNCIONAR: peça a coisa ao Jarvis, abra Configurações > Diagnóstico > "Copiar o registro" e cole na conversa.
