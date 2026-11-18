@@ -27,6 +27,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    packaging { jniLibs { pickFirsts += "**/libjnidispatch.so" } }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -36,6 +37,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Ativar falando "Jarvis" (reconhecimento de voz offline)
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("com.alphacephei:vosk-android:0.3.47@aar")
     // Editor de vídeo (Media3)
     implementation("androidx.media3:media3-common:1.4.1")
     implementation("androidx.media3:media3-exoplayer:1.4.1")

@@ -23,8 +23,8 @@ class MainActivity : ComponentActivity() {
         setContent { Root(vm) }
     }
 
-    override fun onStart() { super.onStart(); vm.resumeClap() }
-    override fun onStop() { super.onStop(); if (!vm.cfg.background) vm.pause() }
+    override fun onStart() { super.onStart(); Overlay.appVisible = true; Overlay.sync(applicationContext, false); vm.resumeClap() }
+    override fun onStop() { super.onStop(); Overlay.appVisible = false; Overlay.sync(applicationContext, vm.cfg.overlay); if (!vm.cfg.background) vm.pause() }
 }
 
 @Composable
@@ -44,5 +44,6 @@ fun Root(vm: JarvisViewModel) {
         if (want.isEmpty()) vm.onMic(true) else perms.launch(want.toTypedArray())
     }
     LaunchedEffect(vm.cfg.background) { syncBackground(ctx, vm.cfg.background) }
+    LaunchedEffect(vm.cfg.wake) { WakeWord.sync(ctx, vm) }
     JarvisApp(vm)
 }

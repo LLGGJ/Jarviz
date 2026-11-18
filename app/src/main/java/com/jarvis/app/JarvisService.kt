@@ -53,6 +53,8 @@ class JarvisService : Service() {
         val brain = BrainStore.get(application)
         brain.onMic(true)
         brain.resumeClap()
+        Overlay.sync(applicationContext, brain.cfg.overlay)
+        WakeWord.sync(applicationContext, brain)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY

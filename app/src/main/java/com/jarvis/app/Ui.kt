@@ -195,7 +195,7 @@ fun JarvisApp(vm: JarvisViewModel) {
         ModalNavigationDrawer(
             drawerState = drawer,
             drawerContent = { ModalDrawerSheet(drawerContainerColor = Panel) { SettingsPanel(vm) } }
-        ) { if (VideoEditor.open) VideoEditorScreen(vm) else MainScreen(vm) { scope.launch { drawer.open() } } }
+        ) { if (VideoEditor.open) VideoEditorScreen(vm) else if (TermUi.open) TerminalScreen() else MainScreen(vm) { scope.launch { drawer.open() } } }
     }
 }
 
@@ -373,6 +373,12 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
     var typing by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     var capVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(AppActions.pendingKeys.size) {
+        while (AppActions.pendingKeys.isNotEmpty()) {
+            val k = AppActions.pendingKeys.removeAt(0)
+            vm.updateCfg(vm.cfg.withKey(k.provider, k.key))
+        }
+    }
     val last = vm.msgs.lastOrNull { it.role != "user" }
     LaunchedEffect(last?.text?.length, vm.msgs.size) {
         if (last != null) { capVisible = true; delay(12000); capVisible = false }
@@ -574,13 +580,28 @@ fun SettingsPanel(vm: JarvisViewModel) {
         }
         Section("Celular e segundo plano", startOpen = true) {
             Text(
-                if (ScreenControl.ready()) "Controle do celular: ligado."
-                else "Controle do celular: desligado. Toque no botão abaixo e ligue o Jarvis em Acessibilidade.",
+                when {
+                    ScreenControl.svc != null -> "Controle do celular: ligado e conectado."
+                    ScreenControl.ready() -> "Ligado no Android, mas o serviço ainda não conectou. Desligue e ligue o Jarvis em Acessibilidade."
+                    else -> "Controle do celular: desligado. Toque no botão abaixo e ligue o Jarvis em Acessibilidade."
+                },
                 color = Muted, fontSize = 12.sp
             )
             NeonToggle("Deixar o Jarvis mexer no celular", c.screen) { vm.updateCfg(vm.cfg.copy(screen = it)) }
             NeonButton("Ligar a acessibilidade do Jarvis", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.BOLT) { open(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            var testMsg by remember { mutableStateOf("") }
+            NeonButton("Testar: apertar o botão Home", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.CHECK) {
+                testMsg = "Vou apertar o Home em 3 segundos..."
+                Thread { Thread.sleep(3000); testMsg = ScreenControl.run("screen_global", org.json.JSONObject().put("action", "home")) }.start()
+            }
+            if (testMsg.isNotBlank()) Text(testMsg, color = Muted, fontSize = 12.sp)
             NeonToggle("Ficar ligado em segundo plano", c.background) { vm.updateCfg(vm.cfg.copy(background = it)) }
+            NeonToggle("Robozinho flutuando sobre outros apps", c.overlay) { vm.updateCfg(vm.cfg.copy(overlay = it)) }
+            NeonButton("Permitir exibir sobre outros apps", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.OPEN) {
+                open(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + ctx.packageName)))
+            }
+            NeonToggle("Ativar falando \"Jarvis\" (baixa 31 MB)", c.wake) { vm.updateCfg(vm.cfg.copy(wake = it)) }
+            if (c.wake) Text(WakeWord.status.ifBlank { "Iniciando..." }, color = Muted, fontSize = 12.sp)
             NeonButton("Não deixar o Android me desligar", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.SHIELD) { open(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             NeonButton("Permitir acesso aos arquivos", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.FOLDER) { vm.requestFiles() }
         }
@@ -593,6 +614,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonField(c.ghToken, { vm.updateCfg(vm.cfg.copy(ghToken = it)) }, "TOKEN DO GITHUB (ghp_...)", placeholder = "ghp_xxxxxxxxxxxx", secret = true)
             NeonField(c.repo, { vm.updateCfg(vm.cfg.copy(repo = it)) }, "REPOSITÓRIO DO APP", placeholder = "dono/repositorio")
             NeonField(c.firecrawl, { vm.updateCfg(vm.cfg.copy(firecrawl = it)) }, "CHAVE FIRECRAWL (OPCIONAL)", secret = true)
+            NeonField(c.jamendoKey, { vm.updateCfg(vm.cfg.copy(jamendoKey = it.trim())) }, "JAMENDO CLIENT ID (MÚSICA LIVRE, OPCIONAL)", secret = true)
             NeonToggle("Verificar o celular 1x por dia", c.autoScan) { vm.updateCfg(vm.cfg.copy(autoScan = it)) }
             NeonButton("Verificar agora", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.SHIELD) { vm.runScanNow() }
         }
@@ -606,6 +628,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
         Section("Terminal Linux (Termux)") {
             val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
             Text(vm.termuxStatus(), color = Muted, fontSize = 12.sp)
+            NeonButton("Abrir terminal do Jarvis", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TERMINAL) { TermUi.open = true }
             NeonButton("Instalar o Termux", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.OPEN) { open(Intent(Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/com.termux/"))) }
             NeonButton("Permitir acesso ao Termux", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.CHECK) { permLauncher.launch("com.termux.permission.RUN_COMMAND") }
             NeonButton("Copiar comando de configuração", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TERMINAL) { vm.copyTermuxSetup() }

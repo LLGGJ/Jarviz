@@ -90,24 +90,28 @@ class AiClient {
         cancelled = false
         val heavy = isHeavy(messages, tools)
         HomeControl.sync(cfg)
+        VideoEditor.jamendoId = cfg.jamendoKey.trim()
         val userText = lastUserText(messages)
         val useScreen = cfg.screen && ScreenControl.ready()
         val useVideo = VideoEditor.wanted(userText)
         val useHome = HomeControl.homeReady()
         val usePc = HomeControl.pcReady()
+        val useApp = AppActions.wanted(userText)
         val extra = JSONArray()
         if (useScreen) ScreenControl.toolDefs().forEach { extra.put(it) }
         if (useVideo) VideoEditor.toolDefs().forEach { extra.put(it) }
         if (useHome) HomeControl.homeDefs().forEach { extra.put(it) }
         if (usePc) HomeControl.pcDefs().forEach { extra.put(it) }
+        if (useApp) AppActions.defs().forEach { extra.put(it) }
         val augmented = extra.length() > 0
         val allTools = if (augmented) JSONArray(tools.toString()).also { arr -> for (k in 0 until extra.length()) arr.put(extra.get(k)) } else tools
         val sys = system + (if (useScreen) ScreenControl.PROMPT else "") + (if (useVideo) VideoEditor.PROMPT else "") +
-            (if (useHome) HomeControl.HOME_PROMPT else "") + (if (usePc) HomeControl.PC_PROMPT else "") + Skills.forRequest(userText)
+            (if (useHome) HomeControl.HOME_PROMPT else "") + (if (usePc) HomeControl.PC_PROMPT else "") + Skills.forRequest(userText) +
+            Skills.VOICE_NOTE + (if (useApp) Skills.keysSkill() else "")
         val work = if (augmented) JSONArray(messages.toString()) else messages
         val owns: (String) -> Boolean = { n ->
             (useScreen && n.startsWith("screen_")) || (useVideo && n.startsWith("video_")) ||
-                (useHome && n.startsWith("home_")) || (usePc && n.startsWith("pc_"))
+                (useHome && n.startsWith("home_")) || (usePc && n.startsWith("pc_")) || (useApp && n.startsWith("app_"))
         }
         var steps = 0
         while (true) {
@@ -123,6 +127,7 @@ class AiClient {
                     c.name.startsWith("video_") -> VideoEditor.run(c.name, c.args)
                     c.name.startsWith("home_") -> HomeControl.runHome(c.name, c.args)
                     c.name.startsWith("pc_") -> HomeControl.runPc(c.name, c.args)
+                    c.name.startsWith("app_") -> AppActions.run(c.name, c.args)
                     else -> ScreenControl.run(c.name, c.args)
                 }
             }

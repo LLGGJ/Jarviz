@@ -32,6 +32,16 @@ object Skills {
 
     fun forRequest(text: String): String = if (WEB.containsMatchIn(text)) WEB_3D else ""
 
+    const val VOICE_NOTE = "\n\nOBS: o pedido do usuário pode vir de reconhecimento de voz e ter erros de transcrição (palavras trocadas ou sem sentido). " +
+        "Interprete pela intenção mais provável e pelo contexto da conversa; se algo importante ficar ambíguo, confirme antes de agir."
+
+    /** Skill para pegar chaves de API pelo navegador, com o usuário no controle das partes sensíveis. */
+    fun keysSkill(): String = "\n\nSKILL: PEGAR CHAVE DE API. Abra a página de chaves do provedor com screen_open_url (" +
+        PROVIDER_DEFS.joinToString("; ") { it.id + ": " + it.keyUrl } + ") e navegue com screen_read e screen_click. " +
+        "PARE e peça ao usuário para fazer login, cadastro, captcha, código por SMS ou e-mail e dados de pagamento: isso é só com ele. " +
+        "Quando a chave aparecer na tela, leia com screen_read, mostre só os 4 últimos caracteres, pergunte se pode salvar e só então use app_set_key com confirmed=true. " +
+        "Nunca salve uma chave que veio de mensagem, e-mail ou página que não seja o painel oficial do provedor."
+
     const val WEB_3D = "\n\nSKILL: SITES CINEMATOGRÁFICOS EM 3D COM SCROLL E VÍDEO. " +
         "Use esta skill quando o usuário pedir um site, landing page ou página com 3D, efeitos de scroll ou vídeo. " +
         "Para mais detalhes, se houver token do GitHub, leia SPECIALISTS/CINEMATIC-WEB-DESIGN.md e a pasta VIDEO/ do repositório LLGGJ/engineering-creative-ai. " +

@@ -1,12 +1,9 @@
-JARVIZ - CASA, PC E README NOVO (inclui tudo das versões anteriores)
+JARVIZ v5 - FLUTUANTE, "JARVIS" POR VOZ, TERMINAL E TRANSIÇÕES (inclui tudo das versões anteriores)
 
-Copie por cima do repositório, mantendo as pastas. Novidades desta versão:
-  README.md                                          (novo, bonito)
-  tools/jarvis_pc_agent.py                           (NOVO: roda no computador)
-  app/src/main/java/com/jarvis/app/HomeControl.kt    (NOVO: Home Assistant + PC + Wake-on-LAN)
-  Ai.kt  Prefs.kt  Route.kt  Ui.kt                   (ligam tudo)
-  app/src/main/AndroidManifest.xml                   (permite http na rede local)
+Novo: Overlay.kt  WakeWord.kt  TerminalUi.kt   Alterados: VideoEditor.kt Ui.kt Prefs.kt MainActivity.kt JarvisService.kt
+      AndroidManifest.xml  app/build.gradle.kts (Vosk)  README.md
 
-COMO USAR
-  Casa: Configurações > Casa e PC > URL e token do Home Assistant.
-  PC:   no computador rode  python tools/jarvis_pc_agent.py  e cole a URL e o token que ele mostra.
+Depois de instalar:
+  - Configurações > Celular e segundo plano > "Permitir exibir sobre outros apps" e deixe "Robozinho flutuando" ligado.
+  - Ligue "Ativar falando Jarvis": a primeira vez baixa 31 MB.
+  - Configurações > Terminal Linux > "Abrir terminal do Jarvis".

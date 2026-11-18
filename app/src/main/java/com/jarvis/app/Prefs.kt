@@ -43,6 +43,12 @@ data class Config(
     val haToken: String = "",
     val pcUrl: String = "",
     val pcToken: String = "",
+    /** Client ID gratuito do Jamendo (música com licença Creative Commons). */
+    val jamendoKey: String = "",
+    /** Robozinho flutuante sobre outros apps. */
+    val overlay: Boolean = true,
+    /** Ativar falando "Jarvis" (Vosk, offline). */
+    val wake: Boolean = false,
 ) {
     private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
 
@@ -162,6 +168,9 @@ class Prefs(ctx: Context) {
         haToken = sp.getString("haToken", d.haToken)!!,
         pcUrl = sp.getString("pcUrl", d.pcUrl)!!,
         pcToken = sp.getString("pcToken", d.pcToken)!!,
+        jamendoKey = sp.getString("jamendoKey", d.jamendoKey)!!,
+        overlay = sp.getBoolean("overlay", d.overlay),
+        wake = sp.getBoolean("wake", d.wake),
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -178,5 +187,5 @@ class Prefs(ctx: Context) {
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
         .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback)
         .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background)
-        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).apply()
+        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).putString("jamendoKey", c.jamendoKey).putBoolean("overlay", c.overlay).putBoolean("wake", c.wake).apply()
 }
