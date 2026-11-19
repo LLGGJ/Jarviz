@@ -102,6 +102,8 @@ object VideoEditor {
     var selected by mutableIntStateOf(-1)
     var status by mutableStateOf("")
     @Volatile var exporting = false
+    var lastAction by mutableStateOf("")
+    var exportedUri by mutableStateOf<Uri?>(null)
     var ctx: Context? = null
     private var nextId = 0
     var jamendoId = ""
@@ -155,7 +157,26 @@ object VideoEditor {
         t("video_transition", "Põe uma transição num clipe: fade, fadein, fadeout, zoomin, zoomout ou nenhum. seconds = duração do fade.", p("index" to "number", "type" to "string", "seconds" to "number"), listOf("index", "type")),
     )
 
+    private fun pretty(n: String, a: JSONObject): String = when (n) {
+        "video_open" -> "abrindo o editor"
+        "video_add_clip" -> "adicionando um clipe"
+        "video_trim" -> "cortando o clipe ${a.optInt("index") + 1}"
+        "video_remove" -> "removendo um clipe"
+        "video_move" -> "reordenando os clipes"
+        "video_speed" -> "mudando a velocidade"
+        "video_text" -> "escrevendo a legenda"
+        "video_music" -> "colocando a música"
+        "video_filter" -> "aplicando um filtro"
+        "video_transition" -> "criando a transição"
+        "video_beats" -> "analisando o ritmo da música"
+        "video_music_search" -> "procurando música livre"
+        "video_music_get" -> "baixando a música"
+        "video_export" -> "exportando o vídeo"
+        else -> n
+    }
+
     fun run(name: String, a: JSONObject): String {
+        lastAction = pretty(name, a)
         return try {
             when (name) {
                 "video_open" -> { open = true; "Editor aberto.\n" + listMedia() }
@@ -455,6 +476,23 @@ object VideoEditor {
         return "Adicionada como mídia ${m.id}: $title. Licença: ${o.optString("license_ccurl")}. Dê o crédito ao artista."
     }
 
+    /** Onda do áudio para desenhar na timeline (valores de 0 a 1). */
+    fun waveform(c: Context, m: VMedia, bars: Int): FloatArray {
+        return try {
+            val env = envelope(c, m.uri, 90_000)
+            if (env.isEmpty()) return FloatArray(0)
+            val group = maxOf(1, env.size / bars)
+            val out = FloatArray(minOf(bars, env.size / group)) { k ->
+                var mx = 0f
+                for (j in k * group until minOf(env.size, (k + 1) * group)) if (env[j] > mx) mx = env[j]
+                mx
+            }
+            val peak = out.maxOrNull() ?: 1f
+            if (peak > 0f) for (k in out.indices) out[k] = out[k] / peak
+            out
+        } catch (e: Exception) { FloatArray(0) }
+    }
+
     // ---------- exportação ----------
 
     fun export(format: String): String {
@@ -536,6 +574,8 @@ object VideoEditor {
             override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                 exporting = false
                 status = "Pronto! " + saveToGallery(c, out)
+                exportedUri = Uri.fromFile(out)
+                lastAction = ""
             }
             override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
                 exporting = false

@@ -25,7 +25,7 @@ O Jarvis é um app Android feito em **Kotlin + Jetpack Compose**. A tela inteira
 
 | | Recurso | O que faz |
 |---|---|---|
-| 🎙️ | **Voz e 2 palmas** | Escuta, responde por voz e acorda com 2 palmas, mesmo com o app em segundo plano. |
+| 🎙️ | **Voz** | Escuta, responde por voz e acorda quando você chama "Jarvis", mesmo com o app em segundo plano. |
 | 🧠 | **11 provedores de IA** | FlatAI, Gemini, Anthropic, OpenAI, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together e Cerebras. |
 | ⚖️ | **Modelo pequeno ou grande, sozinho** | Pergunta simples usa o modelo rápido e barato. Código, análise e tarefas difíceis usam o modelo forte. |
 | 🔁 | **Fallback automático** | Se um modelo ou provedor falha, sem saldo ou sem resposta, ele tenta o próximo que você configurou. |

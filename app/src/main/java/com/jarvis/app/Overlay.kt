@@ -142,7 +142,7 @@ private class FaceView(ctx: Context, val vm: JarvisViewModel, val wm: WindowMana
                 when (vm.state) {
                     State.THINKING -> vm.cancel()
                     State.SPEAKING -> vm.interrupt()
-                    else -> vm.listenNow()
+                    else -> { BeepGuard.pre(); vm.listenNow() }
                 }
             }
         }

@@ -1,7 +1,10 @@
-JARVIZ v6 - DIAGNÓSTICO + EMOÇÕES (inclui tudo das versões anteriores)
+JARVIZ v7 - EDITOR DE VERDADE, ROBÔ NOVO, SÓ "JARVIS" POR VOZ, SEM PLIM
 
-Novo: DebugLog.kt  Mood.kt
-Alterados: Ai.kt (registro + abre o editor de vídeo sozinho quando você pede)  Face.kt (bravo, assustado, sonolento, feliz)
-           Ui.kt (Diagnóstico nas configurações)  WakeWord.kt  MainActivity.kt  JarvisService.kt  README.md
-
-SE ALGO NÃO FUNCIONAR: peça a coisa ao Jarvis, abra Configurações > Diagnóstico > "Copiar o registro" e cole na conversa.
+  Face.kt          robô novo: cabeça branca, tela preta, corpo, braços e luz no peito
+  VideoUi.kt       editor: prévia, miniaturas, onda da música, agulha, "Jarvis está fazendo..." ao vivo, ver resultado
+  VideoEditor.kt   ação ao vivo, resultado final, onda
+  Beep.kt          silencia o plim do Google ao escutar
+  WakeWord.kt      "Jarvis" mais tolerante (liga sozinho, sem palmas)
+  ScreenControl.kt sai do app do Jarvis antes de tocar na tela
+  Ui.kt            configurações enxutas, sem botões de teste (o Diagnóstico aparece tocando 5x em "Configurações")
+  Prefs.kt  MainActivity.kt  JarvisService.kt  Overlay.kt  README.md

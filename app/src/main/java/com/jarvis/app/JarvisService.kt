@@ -42,12 +42,13 @@ class JarvisService : Service() {
         super.onCreate()
         VideoEditor.ctx = applicationContext
         Mood.start(applicationContext)
+        BeepGuard.start(application)
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel("jarvis_bg", "Jarvis ligado", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(this, "jarvis_bg")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("Jarvis ligado")
-            .setContentText("Bata 2 palmas ou toque aqui para abrir").setContentIntent(open).setOngoing(true).build()
+            .setContentText("Diga Jarvis ou toque aqui para abrir").setContentIntent(open).setOngoing(true).build()
         try {
             if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) else startForeground(1, n)
         } catch (e: Exception) { stopSelf(); return }

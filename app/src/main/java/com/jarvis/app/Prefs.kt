@@ -48,7 +48,7 @@ data class Config(
     /** Robozinho flutuante sobre outros apps. */
     val overlay: Boolean = true,
     /** Ativar falando "Jarvis" (Vosk, offline). */
-    val wake: Boolean = false,
+    val wake: Boolean = true,
 ) {
     private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
 
@@ -142,7 +142,7 @@ class Prefs(ctx: Context) {
         effort = sp.getString("effort", d.effort)!!,
         ghToken = sp.getString("ghToken", d.ghToken)!!,
         speak = sp.getBoolean("speak", d.speak),
-        clap = sp.getBoolean("clap", d.clap),
+        clap = false,
         preset = sp.getString("preset", d.preset)!!,
         api = sp.getString("api", d.api)!!,
         models = sp.getString("models", d.models)!!,
@@ -170,7 +170,7 @@ class Prefs(ctx: Context) {
         pcToken = sp.getString("pcToken", d.pcToken)!!,
         jamendoKey = sp.getString("jamendoKey", d.jamendoKey)!!,
         overlay = sp.getBoolean("overlay", d.overlay),
-        wake = sp.getBoolean("wake", d.wake),
+        wake = sp.getBoolean("wake2", true),
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -187,5 +187,5 @@ class Prefs(ctx: Context) {
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
         .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback)
         .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background)
-        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).putString("jamendoKey", c.jamendoKey).putBoolean("overlay", c.overlay).putBoolean("wake", c.wake).apply()
+        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).putString("jamendoKey", c.jamendoKey).putBoolean("overlay", c.overlay).putBoolean("wake2", c.wake).apply()
 }

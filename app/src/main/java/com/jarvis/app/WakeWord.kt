@@ -29,6 +29,31 @@ object WakeWord {
     @Volatile private var running = false
     @Volatile var status = ""
 
+    private fun lev(a: String, b: String): Int {
+        val d = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            var prev = d[0]
+            d[0] = i
+            for (j in 1..b.length) {
+                val tmp = d[j]
+                d[j] = minOf(d[j] + 1, d[j - 1] + 1, prev + if (a[i - 1] == b[j - 1]) 0 else 1)
+                prev = tmp
+            }
+        }
+        return d[b.length]
+    }
+
+    /** Aceita variações de como o reconhecedor escreve "Jarvis". */
+    private fun heard(text: String): Boolean {
+        if (HIT.containsMatchIn(text)) return true
+        val words = Regex("[a-zà-ú]+").findAll(text).map { it.value }.toList()
+        for (i in words.indices) {
+            if (words[i].length >= 4 && lev(words[i], "jarvis") <= 2) return true
+            if (i + 1 < words.size && (words[i] + words[i + 1]).length >= 5 && lev(words[i] + words[i + 1], "jarvis") <= 2) return true
+        }
+        return false
+    }
+
     private fun modelDir(c: Context) = File(c.filesDir, "vosk-pt")
     private fun hasModel(c: Context) = File(modelDir(c), "am").isDirectory
 
@@ -98,9 +123,11 @@ object WakeWord {
                     val fin = rec.acceptWaveForm(buf, n)
                     val text = (if (fin) rec.result else rec.partialResult).lowercase()
                     if (fin && text.length > 18) DebugLog.add("wake ouviu: " + text.take(80))
-                    if (HIT.containsMatchIn(text)) {
+                    if (heard(text)) {
+                        DebugLog.add("wake: ouvi Jarvis")
                         rec.reset()
                         ar.stop(); ar.release(); ar = null
+                        BeepGuard.pre()
                         Handler(Looper.getMainLooper()).post { vm.listenNow() }
                         Thread.sleep(1500)
                     }

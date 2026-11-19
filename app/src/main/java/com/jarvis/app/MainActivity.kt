@@ -21,9 +21,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         VideoEditor.ctx = applicationContext
         Mood.start(applicationContext)
+        ScreenControl.activity = this
+        BeepGuard.start(application)
         setContent { Root(vm) }
     }
 
+    override fun onDestroy() { if (ScreenControl.activity === this) ScreenControl.activity = null; super.onDestroy() }
     override fun onStart() { super.onStart(); Overlay.appVisible = true; Overlay.sync(applicationContext, false); vm.resumeClap() }
     override fun onStop() { super.onStop(); Overlay.appVisible = false; Overlay.sync(applicationContext, vm.cfg.overlay); if (!vm.cfg.background) vm.pause() }
 }

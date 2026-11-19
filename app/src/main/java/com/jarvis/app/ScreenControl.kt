@@ -26,6 +26,7 @@ class ScreenService : AccessibilityService() {
 
 object ScreenControl {
     @Volatile var svc: ScreenService? = null
+    @Volatile var activity: android.app.Activity? = null
     /** Ligado no Android (mesmo que o serviço ainda não tenha conectado) ou já conectado. */
     fun ready(): Boolean = svc != null || enabledInSettings()
 
@@ -73,6 +74,7 @@ object ScreenControl {
 
     fun run(name: String, a: JSONObject): String {
         val s = svc ?: waitConnect() ?: return "O serviço de acessibilidade do Jarvis não conectou. Peça ao usuário para desligar e ligar o Jarvis em Configurações do Android > Acessibilidade."
+        if (name in setOf("screen_read", "screen_click", "screen_tap", "screen_swipe", "screen_scroll", "screen_type")) leaveOwnApp(s)
         return try {
             when (name) {
                 "screen_read" -> read(s)
@@ -90,6 +92,36 @@ object ScreenControl {
         } catch (e: Exception) {
             "Erro: ${e.message}"
         }
+    }
+
+    /** Se o app do Jarvis está na frente, manda ele para trás para a ação cair no app de destino. */
+    private fun leaveOwnApp(s: ScreenService) {
+        val pkg = s.rootInActiveWindow?.packageName?.toString() ?: return
+        if (pkg != s.packageName) return
+        val act = activity ?: return
+        DebugLog.add("saindo do app do Jarvis para agir na tela")
+        act.runOnUiThread { act.moveTaskToBack(true) }
+        settle(1100)
+    }
+
+    private fun clickAt(root: AccessibilityNodeInfo?, x: Int, y: Int): Boolean {
+        if (root == null) return false
+        var best: AccessibilityNodeInfo? = null
+        var bestArea = Long.MAX_VALUE
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            val r = Rect()
+            n.getBoundsInScreen(r)
+            if (r.contains(x, y) && n.isVisibleToUser) {
+                if (n.isClickable) {
+                    val area = r.width().toLong() * r.height()
+                    if (area < bestArea) { bestArea = area; best = n }
+                }
+                for (i in 0 until n.childCount) walk(n.getChild(i))
+            }
+        }
+        walk(root)
+        return best?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
     }
 
     private fun settle(ms: Long = 700) { try { Thread.sleep(ms) } catch (e: InterruptedException) { } }
@@ -135,11 +167,13 @@ object ScreenControl {
             override fun onCancelled(gestureDescription: GestureDescription?) { latch.countDown() }
         }, null)
         latch.await(4, TimeUnit.SECONDS)
+        DebugLog.add("gesto de toque/deslize: ok=$ok")
         return ok
     }
 
     private fun tap(s: ScreenService, x: Float, y: Float): String {
         val ok = gesture(s, Path().apply { moveTo(x, y); lineTo(x, y + 1f) }, 60)
+        if (!ok && clickAt(s.rootInActiveWindow, x.toInt(), y.toInt())) { settle(); return "Cliquei no item em (${x.toInt()}, ${y.toInt()})." }
         settle()
         return if (ok) "Toquei em ($x, $y)." else "O toque não foi feito."
     }
