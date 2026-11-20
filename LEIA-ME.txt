@@ -1,10 +1,6 @@
-JARVIZ v7 - EDITOR DE VERDADE, ROBÔ NOVO, SÓ "JARVIS" POR VOZ, SEM PLIM
+JARVIZ v8 - ROBÔ MAIS FLUIDO, ESTÚDIO DE ANIMAÇÃO, TOQUES RÁPIDOS, ESCOLHA DE MODELO, SKILLS NOVAS
 
-  Face.kt          robô novo: cabeça branca, tela preta, corpo, braços e luz no peito
-  VideoUi.kt       editor: prévia, miniaturas, onda da música, agulha, "Jarvis está fazendo..." ao vivo, ver resultado
-  VideoEditor.kt   ação ao vivo, resultado final, onda
-  Beep.kt          silencia o plim do Google ao escutar
-  WakeWord.kt      "Jarvis" mais tolerante (liga sozinho, sem palmas)
-  ScreenControl.kt sai do app do Jarvis antes de tocar na tela
-  Ui.kt            configurações enxutas, sem botões de teste (o Diagnóstico aparece tocando 5x em "Configurações")
-  Prefs.kt  MainActivity.kt  JarvisService.kt  Overlay.kt  README.md
+Novo:      MotionStudio.kt
+Reescrito: Face.kt (molas, um laço de quadros, sem alocação por quadro, 60 fps em ação / 30 parado, pausa fora da tela)
+Alterado:  VideoEditor.kt (video_motion)  ScreenControl.kt (screen_batch, esperas menores, tela nova após cada ação)
+           Ai.kt  Skills.kt (motion design, React/Remotion, regras)  Mood.kt  WakeWord.kt  Ui.kt (Modelo de IA)  README.md

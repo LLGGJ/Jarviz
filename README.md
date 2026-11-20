@@ -33,6 +33,8 @@ O Jarvis é um app Android feito em **Kotlin + Jetpack Compose**. A tela inteira
 | 🔋 | **Segundo plano** | Fica ligado com uma notificação fixa e continua escutando. |
 | 🫧 | **Robô flutuante** 🧪 | Um robozinho que flutua sobre outros apps enquanto o Jarvis não está na tela. Arraste para mover, toque para falar. |
 | 🗣️ | **Ativar falando "Jarvis"** 🧪 | Reconhecimento offline (Vosk). Baixa um modelo de 31 MB na primeira vez. |
+| 🎞️ | **Estúdio de animação** 🧪 | O Jarvis cria animações (motion design) em vídeo a partir de uma cena em JSON: textos, formas, fotos, partículas, easing, e grava um MP4 no próprio celular. |
+| 🧭 | **Modelo à escolha** | Automático (pequeno ou grande, com fallback) ou o provedor e o modelo que você escolher. |
 | 😠 | **Emoções** 🧪 | Chacoalhe e ele fica bravo; deixe cair e ele se assusta; tape a tela ou deixe parado e ele dorme; vários toques seguidos e ele ri. |
 | 🎬 | **Editor de vídeo com timeline** 🧪 | Você manda vídeos, fotos e música, pede por voz e a timeline se monta na tela. Corta no ritmo da música, aplica filtros, busca música livre (Creative Commons, no Jamendo) e exporta para a galeria. |
 | 🌐 | **Sites 3D com scroll e vídeo** 🧪 | Skill baseada no repositório [engineering-creative-ai](https://github.com/LLGGJ/engineering-creative-ai). |

@@ -111,9 +111,9 @@ class AiClient {
         val augmented = extra.length() > 0
         DebugLog.add("pedido: \"${userText.take(70)}\" | grande=$heavy | ferramentas: tela=$useScreen video=$useVideo casa=$useHome pc=$usePc app=$useApp | total=${extra.length()}")
         val allTools = if (augmented) JSONArray(tools.toString()).also { arr -> for (k in 0 until extra.length()) arr.put(extra.get(k)) } else tools
-        val sys = system + (if (useScreen) ScreenControl.PROMPT else "") + (if (useVideo) VideoEditor.PROMPT else "") +
+        val sys = system + (if (useScreen) ScreenControl.PROMPT else "") + (if (useVideo) VideoEditor.PROMPT + MotionStudio.PROMPT else "") +
             (if (useHome) HomeControl.HOME_PROMPT else "") + (if (usePc) HomeControl.PC_PROMPT else "") + Skills.forRequest(userText) +
-            Skills.VOICE_NOTE + (if (useApp) Skills.keysSkill() else "") + preNote
+            Skills.VOICE_NOTE + Skills.RULES + (if (useApp) Skills.keysSkill() else "") + preNote
         val work = if (augmented) JSONArray(messages.toString()) else messages
         val owns: (String) -> Boolean = { n ->
             (useScreen && n.startsWith("screen_")) || (useVideo && n.startsWith("video_")) ||

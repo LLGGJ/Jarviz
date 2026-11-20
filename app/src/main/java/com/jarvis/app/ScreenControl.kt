@@ -41,7 +41,7 @@ object ScreenControl {
         return null
     }
 
-    const val PROMPT = "\n\nCONTROLE DO CELULAR (ATIVO E FUNCIONANDO: NUNCA diga que não consegue mexer na tela, use as ferramentas). Chame UMA ferramenta por vez e espere o resultado. " +
+    const val PROMPT = "\n\nCONTROLE DO CELULAR (ATIVO E FUNCIONANDO: NUNCA diga que não consegue mexer na tela, use as ferramentas). Para várias ações seguidas use screen_batch (muito mais rápido); fora isso chame UMA ferramenta por vez. screen_click e as outras já devolvem a tela nova, não precisa chamar screen_read depois. " +
         "Para abrir apps e links use screen_open_app e screen_open_url (não phone_open_app). Se o app do Jarvis estiver na frente, abra o app de destino primeiro. você pode usar o celular do usuário como uma pessoa usaria, com as ferramentas screen_*. " +
         "Antes de agir, use screen_read para ver a tela (cada item vem com @x,y, o centro dele). Prefira screen_click pelo texto; use screen_tap com as coordenadas só se não houver texto. " +
         "Depois de cada ação, confira com screen_read. Para abrir apps use screen_open_app. Para digitar, clique no campo e use screen_type. " +
@@ -69,14 +69,15 @@ object ScreenControl {
         t("screen_global", "Botões do sistema. action: back, home, recents, notifications, quick_settings, lock, screenshot, power.", p("action" to "string"), listOf("action")),
         t("screen_open_app", "Abre um app instalado pelo nome.", p("name" to "string"), listOf("name")),
         t("screen_open_url", "Abre um link (https://...) no navegador do celular.", p("url" to "string"), listOf("url")),
+        t("screen_batch", "Executa vários passos seguidos de uma vez (MUITO mais rápido que um por vez). steps = texto JSON de uma lista de passos: {\"do\":\"open_app\",\"name\":\"...\"}, {\"do\":\"click\",\"text\":\"...\"}, {\"do\":\"type\",\"text\":\"...\"}, {\"do\":\"scroll\",\"direction\":\"down\"}, {\"do\":\"global\",\"action\":\"back\"}, {\"do\":\"open_url\",\"url\":\"...\"}, {\"do\":\"wait\",\"seconds\":1}. Devolve o resultado de cada passo e a tela no final.", p("steps" to "string"), listOf("steps")),
         t("screen_wait", "Espera alguns segundos (para algo carregar).", p("seconds" to "number"), listOf("seconds")),
     )
 
     fun run(name: String, a: JSONObject): String {
         val s = svc ?: waitConnect() ?: return "O serviço de acessibilidade do Jarvis não conectou. Peça ao usuário para desligar e ligar o Jarvis em Configurações do Android > Acessibilidade."
-        if (name in setOf("screen_read", "screen_click", "screen_tap", "screen_swipe", "screen_scroll", "screen_type")) leaveOwnApp(s)
+        if (name in setOf("screen_read", "screen_click", "screen_tap", "screen_swipe", "screen_scroll", "screen_type", "screen_batch")) leaveOwnApp(s)
         return try {
-            when (name) {
+            val res = when (name) {
                 "screen_read" -> read(s)
                 "screen_click" -> click(s, a.optString("text"))
                 "screen_tap" -> tap(s, a.optDouble("x").toFloat(), a.optDouble("y").toFloat())
@@ -86,9 +87,11 @@ object ScreenControl {
                 "screen_global" -> global(s, a.optString("action"))
                 "screen_open_app" -> openApp(s, a.optString("name"))
                 "screen_open_url" -> openUrl(s, a.optString("url"))
+                "screen_batch" -> batch(s, a.optString("steps"))
                 "screen_wait" -> { Thread.sleep((a.optDouble("seconds", 1.0).coerceIn(0.2, 10.0) * 1000).toLong()); "ok" }
                 else -> "Ferramenta desconhecida: $name"
             }
+            if (name in AFTER) res + "\nTela agora:\n" + read(s, 30) else res
         } catch (e: Exception) {
             "Erro: ${e.message}"
         }
@@ -101,7 +104,7 @@ object ScreenControl {
         val act = activity ?: return
         DebugLog.add("saindo do app do Jarvis para agir na tela")
         act.runOnUiThread { act.moveTaskToBack(true) }
-        settle(1100)
+        settle(700)
     }
 
     private fun clickAt(root: AccessibilityNodeInfo?, x: Int, y: Int): Boolean {
@@ -124,14 +127,42 @@ object ScreenControl {
         return best?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
     }
 
-    private fun settle(ms: Long = 700) { try { Thread.sleep(ms) } catch (e: InterruptedException) { } }
+    private val AFTER = setOf("screen_click", "screen_tap", "screen_swipe", "screen_scroll", "screen_type", "screen_open_app", "screen_open_url")
 
-    private fun read(s: ScreenService): String {
+    /** Vários passos de uma vez (uma só ida e volta com a IA): bem mais rápido. */
+    private fun batch(s: ScreenService, stepsJson: String): String {
+        val arr = try { JSONArray(stepsJson) } catch (e: Exception) {
+            return "steps precisa ser um JSON de lista, ex.: [{\"do\":\"open_app\",\"name\":\"WhatsApp\"},{\"do\":\"click\",\"text\":\"Conversas\"}]"
+        }
+        val sb = StringBuilder()
+        for (i in 0 until minOf(arr.length(), 15)) {
+            val st = arr.optJSONObject(i) ?: continue
+            val kind = st.optString("do")
+            val r = when (kind) {
+                "open_app" -> openApp(s, st.optString("name"))
+                "open_url" -> openUrl(s, st.optString("url"))
+                "click" -> click(s, st.optString("text"))
+                "tap" -> tap(s, st.optDouble("x").toFloat(), st.optDouble("y").toFloat())
+                "type" -> type(s, st.optString("text"), st.optBoolean("replace", false))
+                "scroll" -> scroll(s, st.optString("direction", "down"))
+                "global" -> global(s, st.optString("action"))
+                "wait" -> { settle((st.optDouble("seconds", 1.0).coerceIn(0.2, 6.0) * 1000).toLong()); "ok" }
+                else -> "Não conheço o passo: $kind"
+            }
+            sb.append(i + 1).append(". ").append(r.lineSequence().firstOrNull().orEmpty()).append('\n')
+            if (r.startsWith("Não") || r.startsWith("Erro")) { sb.append("(parei neste passo)\n"); break }
+        }
+        return sb.toString() + "Tela agora:\n" + read(s, 30)
+    }
+
+    private fun settle(ms: Long = 380) { try { Thread.sleep(ms) } catch (e: InterruptedException) { } }
+
+    private fun read(s: ScreenService, limit: Int = 140): String {
         val root = s.rootInActiveWindow ?: return "Tela indisponível (bloqueada ou protegida)."
         val sb = StringBuilder("App: ${root.packageName}\n")
         var n = 0
         fun walk(nd: AccessibilityNodeInfo?) {
-            if (nd == null || n >= 140) return
+            if (nd == null || n >= limit) return
             val txt = if (nd.isPassword) "(senha)" else nd.text?.toString().orEmpty().take(80)
             val desc = nd.contentDescription?.toString().orEmpty().take(60)
             if (nd.isVisibleToUser && (txt.isNotBlank() || desc.isNotBlank() || nd.isClickable || nd.isEditable)) {
@@ -244,7 +275,7 @@ object ScreenControl {
         } ?: return "App \"$name\" não encontrado."
         val i = pm.getLaunchIntentForPackage(app.packageName)!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         s.startActivity(i)
-        settle(1200)
+        settle(900)
         return "Abri ${pm.getApplicationLabel(app)}."
     }
 }

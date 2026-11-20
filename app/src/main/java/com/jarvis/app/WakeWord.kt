@@ -125,6 +125,7 @@ object WakeWord {
                     if (fin && text.length > 18) DebugLog.add("wake ouviu: " + text.take(80))
                     if (heard(text)) {
                         DebugLog.add("wake: ouvi Jarvis")
+                        Mood.surprise()
                         rec.reset()
                         ar.stop(); ar.release(); ar = null
                         BeepGuard.pre()

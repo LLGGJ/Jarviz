@@ -154,6 +154,7 @@ object VideoEditor {
         t("video_beats", "Analisa as batidas de uma mídia (música ou vídeo com som) e devolve o BPM aproximado e os tempos das batidas em segundos.", p("media" to "number", "max_s" to "number"), listOf("media")),
         t("video_music_search", "Procura música livre (Creative Commons) no Jamendo. Devolve id, nome, artista, duração e licença.", p("query" to "string"), listOf("query")),
         t("video_music_get", "Baixa uma música achada com video_music_search (track_id) e adiciona às mídias como áudio.", p("track_id" to "string"), listOf("track_id")),
+        t("video_motion", "Cria uma animação em vídeo (motion design) a partir de uma cena em JSON e adiciona às mídias (e à timeline se add=true). Veja o formato na skill de motion design.", p("scene" to "string", "add" to "boolean"), listOf("scene")),
         t("video_transition", "Põe uma transição num clipe: fade, fadein, fadeout, zoomin, zoomout ou nenhum. seconds = duração do fade.", p("index" to "number", "type" to "string", "seconds" to "number"), listOf("index", "type")),
     )
 
@@ -172,6 +173,7 @@ object VideoEditor {
         "video_music_search" -> "procurando música livre"
         "video_music_get" -> "baixando a música"
         "video_export" -> "exportando o vídeo"
+        "video_motion" -> "renderizando a animação"
         else -> n
     }
 
@@ -196,6 +198,7 @@ object VideoEditor {
                 "video_music_search" -> musicSearch(a)
                 "video_music_get" -> musicGet(a)
                 "video_transition" -> transition(a)
+                "video_motion" -> motion(a)
                 else -> "Ferramenta desconhecida: $name"
             }
         } catch (e: Exception) {
@@ -319,6 +322,25 @@ object VideoEditor {
     }
 
     // ---------- transições, filtros, ritmo e música livre ----------
+
+    private fun motion(a: JSONObject): String {
+        val c = ctx ?: return "Sem contexto do app."
+        val scene = try { JSONObject(a.optString("scene")) } catch (e: Exception) { return "A cena precisa ser um JSON válido: ${e.message}" }
+        status = "Renderizando animação 0%"
+        val file = try {
+            MotionStudio.render(c, scene) { pc -> status = "Renderizando animação $pc%" }
+        } catch (e: Exception) {
+            status = "Falhou: ${e.message}"
+            return "Erro ao renderizar a animação: ${e.message}"
+        }
+        val dur = (scene.optDouble("duration", 5.0).coerceIn(1.0, 60.0) * 1000).toLong()
+        val m = VMedia(nextId++, Uri.fromFile(file), "animação ${nextId}", "video", dur)
+        media.add(m)
+        status = "Animação pronta."
+        val add = a.optBoolean("add", true)
+        if (add) { clips.add(VClip(m, 0L, dur)); selected = clips.size - 1 }
+        return "Animação criada: mídia ${m.id} (${fmt(dur)})" + (if (add) " e já está na timeline." else ". Use video_add_clip para pôr na timeline.")
+    }
 
     private fun transition(a: JSONObject): String {
         val i = a.optInt("index", -1)

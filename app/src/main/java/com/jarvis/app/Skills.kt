@@ -30,7 +30,26 @@ object Skills {
         "(?i)(\\bsite\\b|landing|p[áa]gina web|p[áa]gina de vendas|portf[óo]lio|webgl|three\\.?js|\\b3d\\b|scroll|cinematogr|cinematic|hero)"
     )
 
-    fun forRequest(text: String): String = if (WEB.containsMatchIn(text)) WEB_3D else ""
+    private val MOTION_RE = Regex("(?i)(motion|anima[çc][ãa]o|animad|vinheta|intro|abertura|lower.?third|tipografia|kinetic|reels|shorts|trailer|after effects)")
+    private val REACT_RE = Regex("(?i)(\\breact\\b|remotion|\\bvite\\b|next\\.?js|componente|tsx|jsx)")
+
+    fun forRequest(text: String): String =
+        (if (WEB.containsMatchIn(text)) WEB_3D else "") + (if (MOTION_RE.containsMatchIn(text)) MOTION_SKILL else "") + (if (REACT_RE.containsMatchIn(text)) REACT_SKILL else "")
+
+    /** Regras gerais, sempre ativas. */
+    const val RULES = "\n\nREGRAS: seja direto e rápido: planeje em 1 ou 2 linhas e aja; não repita ações; confira o resultado. " +
+        "NUNCA crie pastas ou arquivos no armazenamento do celular sem o usuário pedir; quando precisar salvar algo use só Download/Jarvis/ e diga o caminho. " +
+        "Não baixe nem copie imagens ou pastas de recursos (mipmap, drawable, res, assets) de repositórios: leia só os arquivos de que precisa. " +
+        "Se existe uma ferramenta para a tarefa, use-a em vez de dizer que não consegue."
+
+    const val MOTION_SKILL = "\n\nSKILL: MOTION DESIGN. Pense como diretor de movimento: 1) objetivo e público; 2) roteiro em 3 atos com tempos (abre, desenvolve, fecha com chamada); " +
+        "3) sistema visual: 1 fonte, escala tipográfica (título 2x o apoio), 60% base escura ou clara, 30% secundária, 10% destaque; 4) movimento: os 12 princípios (antecipação, squash e stretch, follow-through, ease in e out, arcos, timing, exagero moderado), " +
+        "entradas 0.4 a 0.7 s com ease out, saídas mais rápidas, stagger por letra ou item, parallax e elemento vivo no fundo, ritmo sincronizado com a batida da música; 5) acabamento: margem de segurança, contraste, legendas legíveis, final com respiro. " +
+        "No celular, para criar o vídeo use video_motion (cena em JSON) e combine com os vídeos e a música no editor. Para web, use GSAP e CSS."
+
+    const val REACT_SKILL = "\n\nSKILL: REACT E REMOTION. Para apps e sites, gere um projeto Vite + React + TypeScript com componentes pequenos, estado simples, CSS modules ou Tailwind, acessibilidade e responsivo, e explique como rodar (npm install, npm run dev). " +
+        "Para vídeo por código, use Remotion: composições React com useCurrentFrame e interpolate/spring, <Sequence> para os atos, <Audio> e <Video>, props tipadas, e renderize com npx remotion render. " +
+        "No celular o Jarvis não roda Node: entregue o projeto em Download/Jarvis/ ou rode no PC pelo agente (pc_run). Se o usuário só quer o vídeo pronto no celular, prefira video_motion."
 
     const val VOICE_NOTE = "\n\nOBS: o pedido do usuário pode vir de reconhecimento de voz e ter erros de transcrição (palavras trocadas ou sem sentido). " +
         "Interprete pela intenção mais provável e pelo contexto da conversa; se algo importante ficar ambíguo, confirme antes de agir."

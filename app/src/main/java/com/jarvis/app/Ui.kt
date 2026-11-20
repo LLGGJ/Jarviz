@@ -581,6 +581,23 @@ fun SettingsPanel(vm: JarvisViewModel) {
                 NeonField(c.keyOf(d.id), { vm.updateCfg(vm.cfg.withKey(d.id, it.trim())) }, d.label.uppercase(), placeholder = "cole a chave", secret = true)
             }
         }
+        Section("Modelo de IA") {
+            var msg by remember { mutableStateOf("") }
+            NeonToggle("Escolher o modelo à mão", !c.auto) { vm.updateCfg(vm.cfg.copy(auto = !it)) }
+            if (c.auto) {
+                Text("Automático: o Jarvis usa um modelo pequeno para coisa simples e um grande para coisa difícil.", color = Muted, fontSize = 12.sp)
+            } else {
+                NeonSelect("PROVEDOR", PROVIDERS.map { it.second }, providerLabel(c.provider)) { n ->
+                    vm.updateCfg(vm.cfg.switchedTo(PROVIDERS.first { it.second == n }.first)); msg = ""
+                }
+                NeonSelect("MODELO", c.modelsOf(c.provider), c.model) { n ->
+                    vm.updateCfg(vm.cfg.copy(model = n, preset = n, api = apiFor(n, c.provider), baseUrl = baseFor(apiFor(n, c.provider), c.provider)))
+                }
+                NeonButton("Buscar os modelos da minha chave", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.REFRESH) { vm.refreshProviderModels { msg = it } }
+                if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.sp)
+            }
+            NeonToggle("Se falhar, tentar outros (fallback)", c.fallback) { vm.updateCfg(vm.cfg.copy(fallback = it)) }
+        }
         Section("Permissões", startOpen = true) {
             Text(
                 when {

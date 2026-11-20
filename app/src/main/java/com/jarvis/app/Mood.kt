@@ -35,11 +35,12 @@ object Mood {
     private fun now() = SystemClock.elapsedRealtime()
 
     fun set(m: String, ms: Long) { current = m; until = now() + ms }
+    fun surprise() = set("surprised", 1300)
 
     /** Chamar a cada toque na tela. */
     fun touch() {
         lastTouch = now()
-        if (current == "sleepy" && !covered) current = ""
+        if ((current == "sleepy" || current == "bored") && !covered) current = ""
     }
 
     /** Toque no robô: 4 toques em 1,5 s deixam ele feliz (cócegas). */
@@ -54,9 +55,10 @@ object Mood {
     fun tick(idle: Boolean) {
         val t = now()
         if (!idle) lastTouch = t
-        if (current.isNotEmpty() && current != "sleepy" && t > until) current = ""
-        if (current == "" && idle && !covered && t - lastTouch > 90_000) current = "sleepy"
-        if (current == "sleepy" && !idle) current = ""
+        if (current.isNotEmpty() && current != "sleepy" && current != "bored" && t > until) current = ""
+        if ((current == "" || current == "bored") && idle && !covered && t - lastTouch > 90_000) current = "sleepy"
+        else if (current == "" && idle && !covered && t - lastTouch > 40_000) current = "bored"
+        if ((current == "sleepy" || current == "bored") && !idle) current = ""
     }
 
     private fun say(c: Context, text: String) {
