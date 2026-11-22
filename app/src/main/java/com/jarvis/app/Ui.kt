@@ -408,7 +408,7 @@ fun MainScreen(vm: JarvisViewModel, openMenu: () -> Unit) {
             NeonIcon(Ico.MENU, Modifier.size(18.dp), Muted)
         }
         if (typing) {
-            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().imePadding()) {
                 MessageList(vm, Modifier.fillMaxWidth().heightIn(max = 260.dp))
                 InputBar(vm, input) { input = it }
             }
@@ -621,6 +621,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
             NeonToggle("Mexer no celular", c.screen) { vm.updateCfg(vm.cfg.copy(screen = it)) }
             NeonToggle("Ficar ligado em segundo plano", c.background) { vm.updateCfg(vm.cfg.copy(background = it)) }
             NeonToggle("Robozinho sobre outros apps", c.overlay) { vm.updateCfg(vm.cfg.copy(overlay = it)) }
+            NeonToggle("Guardar conversas em Downloads/Jarvis Sessions", c.saveChats) { vm.updateCfg(vm.cfg.copy(saveChats = it)) }
             Text("Toque no robô para falar com ele e segure para digitar.", color = Muted, fontSize = 12.sp)
         }
         Section("Avançado") {
@@ -641,7 +642,7 @@ fun SettingsPanel(vm: JarvisViewModel) {
                 }
                 NeonButton("Limpar o registro", Modifier.fillMaxWidth(), pad = 12.dp, icon = Ico.TRASH) { DebugLog.lines.clear() }
                 Text(
-                    if (DebugLog.lines.isEmpty()) "Vazio." else DebugLog.lines.takeLast(40).joinToString("\n"),
+                    CrashLog.last(ctx) + (if (DebugLog.lines.isEmpty()) "Vazio." else DebugLog.lines.takeLast(40).joinToString("\n")),
                     color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
                 )
             }

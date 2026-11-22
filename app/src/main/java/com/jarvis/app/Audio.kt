@@ -19,11 +19,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
-/**
- * Detecta duas palmas: cada palma precisa ser um impulso curto (sobe de repente e cai logo em seguida),
- * bem acima do ruído; as duas ficam entre 200 e 750 ms. Fica desarmado enquanto você digita, toca na tela,
- * ou logo depois que a IA termina de falar (para não ouvir o eco dela).
- */
+/** Detector de palmas (não é mais usado: o Jarvis acorda pela voz). Mantido porque o cérebro do app ainda o referencia. */
 class ClapDetector(
     private val onDouble: () -> Unit,
     private val onLevel: ((Float) -> Unit)? = null,
@@ -64,7 +60,6 @@ class ClapDetector(
                 onLevel?.let { cb -> val lv = ((peak - 2000f) / 14000f).coerceIn(0f, 1f); handler.post { cb(lv) } }
                 val thr = max(threshold().toDouble(), noise * 8)
                 if (onsetAt != 0L) {
-                    // o quadro seguinte ao impulso precisa cair: palma = impulso curto; fala e música se sustentam
                     if (peak < onsetPeak * 0.45 && now > armedAt && !suppressed()) {
                         if (lastClap != 0L && onsetAt - lastClap in 200..750) { fired = true; break }
                         lastClap = onsetAt
@@ -86,16 +81,35 @@ class ClapDetector(
     fun stop() { running = false }
 }
 
-/** Limpa o texto para a fala: sem markdown, código, links nem emojis. */
+/**
+ * Prepara o texto para a fala em português do Brasil: tira markdown, código, links e emojis e ensina a pronúncia de
+ * siglas, dinheiro, porcentagem e nomes em inglês, para a voz soar natural.
+ */
 fun speechClean(s: String): String = s
     .replace(Regex("(?s)```.*?```"), " ")
     .replace(Regex("https?://\\S+"), " link no chat ")
     .replace(Regex("[*#`_>|~]+"), " ")
     .replace(Regex("[\\p{So}\\p{Cs}]"), "")
+    .replace(Regex("R\\$\\s?(\\d+)[,.](\\d{2})"), "\$1 reais e \$2 centavos")
+    .replace(Regex("R\\$\\s?(\\d+)"), "\$1 reais")
+    .replace(Regex("(\\d+)\\s?%"), "\$1 por cento")
+    .replace(Regex("(\\d+)\\s?°\\s?C"), "\$1 graus")
+    .replace(Regex("(\\d+)\\s?km/h"), "\$1 quilômetros por hora")
+    .replace(Regex("(?i)\\bjarvis\\b"), "Járvis")
+    .replace(Regex("\\bIA\\b"), "I A")
+    .replace(Regex("\\bAPI\\b"), "A P I")
+    .replace(Regex("\\bAPK\\b"), "A P K")
+    .replace(Regex("\\bURL\\b"), "U R L")
+    .replace(Regex("\\bSVG\\b"), "S V G")
+    .replace(Regex("(?i)\\bgithub\\b"), "Git Rab")
+    .replace(Regex("(?i)\\bwi-?fi\\b"), "uai fai")
+    .replace(Regex("(?i)\\bTermux\\b"), "Térmux")
+    .replace(Regex("\\.{3,}"), ", ")
+    .replace(Regex("\\s[-–—]\\s"), ", ")
     .replace(Regex("\\s+"), " ")
     .trim()
 
-/** Voz: reconhecimento (STT) e fala (TTS) em pt-BR, com fila por frases e escolha da melhor voz. */
+/** Voz: reconhecimento (STT) e fala (TTS) em pt-BR, com fila por frases, melhor voz disponível e entonação pelo humor do robô. */
 class Voice(private val ctx: Context) {
     private val ui = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
@@ -167,6 +181,10 @@ class Voice(private val ctx: Context) {
         val t = speechClean(text)
         val engine = tts
         if (t.isBlank() || engine == null || !ttsReady) return false
+        // entonação pelo humor: bravo = grave e rápido, assustado = agudo, sonolento = lento, feliz = animado
+        val m = Mood.current
+        engine.setPitch(when (m) { "angry" -> 0.82f; "scared" -> 1.25f; "sleepy" -> 0.88f; "joy" -> 1.12f; "curious" -> 1.06f; else -> 0.97f })
+        engine.setSpeechRate(rate * when (m) { "angry" -> 1.12f; "scared" -> 1.15f; "sleepy" -> 0.85f; "joy" -> 1.06f; else -> 1f })
         t.chunked(3500).forEach { part ->
             pending++
             engine.speak(part, TextToSpeech.QUEUE_ADD, null, "u${counter++}")

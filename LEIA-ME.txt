@@ -1,6 +1,8 @@
-JARVIZ v8 - ROBÔ MAIS FLUIDO, ESTÚDIO DE ANIMAÇÃO, TOQUES RÁPIDOS, ESCOLHA DE MODELO, SKILLS NOVAS
+JARVIZ v9 - CONVERSAS NOS DOWNLOADS, VOZ MELHOR, SKILLS NOVAS, EMOJIS VETORIAIS, REGISTRO DE TRAVAMENTOS
 
-Novo:      MotionStudio.kt
-Reescrito: Face.kt (molas, um laço de quadros, sem alocação por quadro, 60 fps em ação / 30 parado, pausa fora da tela)
-Alterado:  VideoEditor.kt (video_motion)  ScreenControl.kt (screen_batch, esperas menores, tela nova após cada ação)
-           Ai.kt  Skills.kt (motion design, React/Remotion, regras)  Mood.kt  WakeWord.kt  Ui.kt (Modelo de IA)  README.md
+Novo:     Sessions.kt (Download/Jarvis Sessions + memória)  
+Alterado: Audio.kt (pronúncia e entonação pelo humor)  Face.kt (corações, faíscas, símbolo de raiva)
+          Skills.kt (estilo de resposta, vídeo, engenharia reversa, SVG, RIA)  DebugLog.kt (CrashLog)
+          Ai.kt  Prefs.kt  Ui.kt (teclado não cobre o campo; guardar conversas; travamento no diagnóstico)  MainActivity.kt  README.md
+
+Diagnóstico escondido: toque 5 vezes no título "Configurações".

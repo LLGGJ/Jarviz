@@ -49,6 +49,8 @@ data class Config(
     val overlay: Boolean = true,
     /** Ativar falando "Jarvis" (Vosk, offline). */
     val wake: Boolean = true,
+    /** Guarda as conversas em Download/Jarvis Sessions. */
+    val saveChats: Boolean = true,
 ) {
     private fun jm(s: String): JSONObject = try { JSONObject(s.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
 
@@ -171,6 +173,7 @@ class Prefs(ctx: Context) {
         jamendoKey = sp.getString("jamendoKey", d.jamendoKey)!!,
         overlay = sp.getBoolean("overlay", d.overlay),
         wake = sp.getBoolean("wake2", true),
+        saveChats = sp.getBoolean("saveChats", true),
     )
     fun lastScan() = sp.getLong("lastScan", 0L)
     fun setLastScan(t: Long) = sp.edit().putLong("lastScan", t).apply()
@@ -187,5 +190,5 @@ class Prefs(ctx: Context) {
         .putString("voiceName", c.voiceName).putString("voiceRate", c.voiceRate).putString("voiceViz", c.voiceViz)
         .putString("keys", c.keys).putString("modelLists", c.modelLists).putBoolean("fallback", c.fallback)
         .putBoolean("auto", c.auto).putBoolean("screen", c.screen).putBoolean("background", c.background)
-        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).putString("jamendoKey", c.jamendoKey).putBoolean("overlay", c.overlay).putBoolean("wake2", c.wake).apply()
+        .putString("haUrl", c.haUrl).putString("haToken", c.haToken).putString("pcUrl", c.pcUrl).putString("pcToken", c.pcToken).putString("jamendoKey", c.jamendoKey).putBoolean("overlay", c.overlay).putBoolean("wake2", c.wake).putBoolean("saveChats", c.saveChats).apply()
 }

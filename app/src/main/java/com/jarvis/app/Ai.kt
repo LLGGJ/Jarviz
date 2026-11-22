@@ -102,12 +102,14 @@ class AiClient {
         val useHome = HomeControl.homeReady()
         val usePc = HomeControl.pcReady()
         val useApp = AppActions.wanted(userText)
+        val useSess = Sessions.wanted(userText) && cfg.saveChats
         val extra = JSONArray()
         if (useScreen) ScreenControl.toolDefs().forEach { extra.put(it) }
         if (useVideo) VideoEditor.toolDefs().forEach { extra.put(it) }
         if (useHome) HomeControl.homeDefs().forEach { extra.put(it) }
         if (usePc) HomeControl.pcDefs().forEach { extra.put(it) }
         if (useApp) AppActions.defs().forEach { extra.put(it) }
+        if (useSess) Sessions.defs().forEach { extra.put(it) }
         val augmented = extra.length() > 0
         DebugLog.add("pedido: \"${userText.take(70)}\" | grande=$heavy | ferramentas: tela=$useScreen video=$useVideo casa=$useHome pc=$usePc app=$useApp | total=${extra.length()}")
         val allTools = if (augmented) JSONArray(tools.toString()).also { arr -> for (k in 0 until extra.length()) arr.put(extra.get(k)) } else tools
@@ -117,7 +119,7 @@ class AiClient {
         val work = if (augmented) JSONArray(messages.toString()) else messages
         val owns: (String) -> Boolean = { n ->
             (useScreen && n.startsWith("screen_")) || (useVideo && n.startsWith("video_")) ||
-                (useHome && n.startsWith("home_")) || (usePc && n.startsWith("pc_")) || (useApp && n.startsWith("app_"))
+                (useHome && n.startsWith("home_")) || (usePc && n.startsWith("pc_")) || (useApp && n.startsWith("app_")) || (useSess && n.startsWith("session_"))
         }
         var steps = 0
         while (true) {
@@ -135,6 +137,7 @@ class AiClient {
                     c.name.startsWith("home_") -> HomeControl.runHome(c.name, c.args)
                     c.name.startsWith("pc_") -> HomeControl.runPc(c.name, c.args)
                     c.name.startsWith("app_") -> AppActions.run(c.name, c.args)
+                    c.name.startsWith("session_") -> Sessions.run(c.name, c.args)
                     else -> ScreenControl.run(c.name, c.args)
                 }
                 DebugLog.add("${c.name} -> ${res.take(110)}")

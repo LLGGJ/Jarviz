@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     // O cérebro vive fora da tela (BrainStore), então continua escutando em segundo plano.
@@ -20,6 +21,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         VideoEditor.ctx = applicationContext
+        CrashLog.install(applicationContext)
         Mood.start(applicationContext)
         ScreenControl.activity = this
         BeepGuard.start(application)
@@ -49,5 +51,11 @@ fun Root(vm: JarvisViewModel) {
     }
     LaunchedEffect(vm.cfg.background) { syncBackground(ctx, vm.cfg.background) }
     LaunchedEffect(vm.cfg.wake) { WakeWord.sync(ctx, vm) }
+    val lastLen = vm.msgs.lastOrNull()?.text?.length ?: 0
+    LaunchedEffect(vm.msgs.size, lastLen, vm.cfg.saveChats) {
+        if (!vm.cfg.saveChats) return@LaunchedEffect
+        delay(1500)
+        Sessions.save(ctx.applicationContext, vm.msgs.toList())
+    }
     JarvisApp(vm)
 }

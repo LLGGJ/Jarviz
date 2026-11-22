@@ -192,6 +192,16 @@ private fun heartPath(p: Path, cx: Float, cy: Float, s: Float) {
     p.close()
 }
 
+private fun starPath(p: Path, x: Float, y: Float, s: Float) {
+    p.reset()
+    p.moveTo(x, y - s)
+    p.quadraticBezierTo(x, y, x + s, y)
+    p.quadraticBezierTo(x, y, x, y + s)
+    p.quadraticBezierTo(x, y, x - s, y)
+    p.quadraticBezierTo(x, y, x, y - s)
+    p.close()
+}
+
 private fun DrawScope.badge(kind: String, c: Offset, r: Float, t: Float, col: Color) {
     val sw = r * 0.16f
     val st = Stroke(sw, cap = StrokeCap.Round)
@@ -438,6 +448,34 @@ private fun DrawScope.drawRobot(r: Rig, tint: Color, act: String, path: Path, er
                 badge(act, Offset(left + fw * 0.93f, top - fh * 0.05f), fh * 0.17f * think.coerceAtLeast(0.01f), t, tc)
             }
         }
+    }
+
+    // emojis vetoriais: corações (feliz e apaixonado), faíscas (falando) e símbolo de raiva
+    if (joy + love > 0.05f) {
+        for (k in 0..2) {
+            val pp = (t * 0.7f + k * 0.33f) % 1f
+            heartPath(path, cx + (k - 1) * fw * 0.28f + sin(t * 3f + k) * fw * 0.03f, top - fh * 0.1f - pp * fh * 0.55f, fh * 0.05f * (0.7f + 0.5f * (1f - pp)))
+            drawPath(path, Color(0xFFFF6B9A).copy(alpha = (joy + love).coerceAtMost(1f) * (1f - pp)))
+        }
+    }
+    if (speak > 0.05f) {
+        for (k in 0..3) {
+            val twk = abs(sin(t * 4f + k * 1.3f))
+            val sx = cx + (if (k % 2 == 0) -1f else 1f) * fw * (0.64f + 0.04f * k)
+            val sy = cy - fh * 0.3f + k * fh * 0.2f
+            starPath(path, sx, sy, fh * 0.06f * twk)
+            drawPath(path, tc.copy(alpha = speak * twk))
+        }
+    }
+    if (angry > 0.05f) {
+        val ax = left + fw * 0.1f
+        val ay = top + fh * 0.02f
+        val sz = fh * 0.07f * (1f + 0.15f * sin(t * 20f))
+        val ac = RED.copy(alpha = angry)
+        drawLine(ac, Offset(ax - sz, ay - sz * 0.3f), Offset(ax + sz * 0.1f, ay - sz * 0.3f), 3f * dp, StrokeCap.Round)
+        drawLine(ac, Offset(ax - sz, ay + sz * 0.5f), Offset(ax + sz * 0.1f, ay + sz * 0.5f), 3f * dp, StrokeCap.Round)
+        drawLine(ac, Offset(ax - sz * 0.5f, ay - sz), Offset(ax - sz * 0.5f, ay + sz * 0.1f), 3f * dp, StrokeCap.Round)
+        drawLine(ac, Offset(ax + sz * 0.3f, ay - sz), Offset(ax + sz * 0.3f, ay + sz * 0.1f), 3f * dp, StrokeCap.Round)
     }
 }
 
